@@ -113,7 +113,7 @@ function send(message) {
   postMessage(json);
 }
 
-let array; // Testing SAB.
+// let array; // Testing SAB.
 
 addEventListener('message', ({ data }) => {
   switch (data.type) {
@@ -121,10 +121,10 @@ addEventListener('message', ({ data }) => {
       url = data.url;
 
       // Testing SAB.
-      array = new Int32Array(data.buffer);
-      console.log('Worker received buffer with: ' + array[0]);
-      console.log('Changing value to 777...');
-      Atomics.store(array, 0, 777);
+      // array = new Int32Array(data.buffer);
+      // console.log('Worker received buffer with: ' + array[0]);
+      // console.log('Changing value to 777...');
+      // Atomics.store(array, 0, 777);
       break;
     case 'event':
       handleEvent(data.event);

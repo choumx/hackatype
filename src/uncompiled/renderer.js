@@ -267,9 +267,9 @@ export default ({ worker }) => {
   }
 
   // Testing SAB.
-  const buffer = new SharedArrayBuffer(Int32Array.BYTES_PER_ELEMENT * 1);
-  const array = new Int32Array(buffer);
-  Atomics.store(array, 0, 123);
+  // const buffer = new SharedArrayBuffer(Int32Array.BYTES_PER_ELEMENT * 1);
+  // const array = new Int32Array(buffer);
+  // Atomics.store(array, 0, 123);
 
   worker.onmessage = ({ data }) => {
     if (data.type==='MutationRecord') {
@@ -277,13 +277,13 @@ export default ({ worker }) => {
         queueMutation(data.mutations[i]);
       }
     }
-    console.log('Array now contains: ' + array[0]); // Testing SAB.
+    // console.log('Array now contains: ' + array[0]); // Testing SAB.
   };
 
 
   worker.postMessage({
     type: 'init',
     location: location.href,
-    buffer, // Testing SAB.
+    // buffer, // Testing SAB.
   });
 };
