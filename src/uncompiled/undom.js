@@ -196,18 +196,29 @@ function undom() {
 
   class HTMLInputElement extends Element {
     constructor(nodeType, nodeName) {
-      super(nodeType, nodeName);
+      super(nodeType || 1, nodeName);
       this.value_ = null;
       Object.defineProperty(this, 'value', {
         set: val => this.setValue(val),
-        get: () => this.value_,
+        get: this.getValue.bind(this),
       });
     }
 
     setValue(v) {
+      if (this.value_ === v) {
+        return;
+      }
       const oldValue = this.value_;
       this.value_ = v;
-      mutation(this, 'properties', {oldValue, newValue: v});
+      // Only update attribute on first render.
+      if (!this.getAttribute('value')) {
+        this.setAttribute('value', v);
+      }
+      mutation(this, 'properties', {propertyName: 'value', oldValue, newValue: v});
+    }
+
+    getValue() {
+      return this.value_;
     }
   }
 

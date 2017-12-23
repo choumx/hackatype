@@ -67,7 +67,8 @@ export default ({ worker }) => {
       event.target = e.target.__id;
     }
 
-    if ('value' in e.target) {
+    // For change events, update worker with new `value` prop.
+    if (e.type == 'change' && 'value' in e.target) {
       event.__value = e.target.value;
     }
 

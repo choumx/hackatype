@@ -24,7 +24,7 @@ class TodoApp extends Component {
 		
 		this.state = { 
 			items: [], 
-			text: '<Add TODOs here>', 
+			text: '<Add TODO>', 
 			id: 0, 
 			focused: false,
 		};
@@ -58,7 +58,7 @@ class TodoApp extends Component {
 	handleFocus(e) {
 		// Clear placeholder text on first focus.
 		if (!this.state.focused) {
-			this.setState({ text: 'focus', focused: true });
+			this.setState({ text: '', focused: true });
 		}
 	}
 
