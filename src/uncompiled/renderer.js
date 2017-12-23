@@ -1,19 +1,4 @@
-// TODO(willchou)
-// 1. Worker -> DOM mutations work, but what about DOM -> worker? E.g. <input> changes.
-
-/** Events that should not be proxied into the Worker's DOM */
-// const EVENT_BLACKLIST = [
-//   'mousewheel', 
-//   'wheel', 
-//   'animationstart', 
-//   'animationiteration', 
-//   'animationend', 
-//   'devicemotion', 
-//   'deviceorientation', 
-//   'deviceorientationabsolute',
-// ];
-
-const EVENT_WHITELIST = [
+const EVENTS_TO_PROXY = [
   'change',
   'click',
   'focus',
@@ -22,7 +7,7 @@ const EVENT_WHITELIST = [
 /** Sets up a bidirectional DOM Mutation+Event proxy to a Workerized app.
  *  @param {Worker} opts.worker   The WebWorker instance to proxy to.
  */
-export default ({ worker }) => {
+export default ({worker}) => {
   const NODES = new Map();
 
   /** Returns the real DOM Element corresponding to a serialized Element object. */
@@ -36,24 +21,16 @@ export default ({ worker }) => {
     return NODES.get(node.__id);
   }
 
-  /** Loop over all "on*" event names on Window and set up a proxy handler for each. */
-  for (let i in window) {
-    let m = i.substring(2);
-    if (i.substring(0, 2) === 'on' 
-        && i === i.toLowerCase() 
-        && EVENT_WHITELIST.indexOf(m) >= 0
-        // && EVENT_BLACKLIST.indexOf(m) < 0 
-        && (window[i] === null || typeof window[i] === 'function')) {
-      addEventListener(m, proxyEvent, {capture: true, passive: true});
-    }
-  }
+  EVENTS_TO_PROXY.forEach((e) => {
+    addEventListener(e, proxyEvent, {capture: true, passive: true});
+  });
 
   let touch;
 
   /** Derives {pageX,pageY} coordinates from a mouse or touch event. */
   function getTouch(e) {
     let t = (e.changedTouches && e.changedTouches[0]) || (e.touches && e.touches[0]) || e;
-    return t && { pageX: t.pageX, pageY: t.pageY };
+    return t && {pageX: t.pageX, pageY: t.pageY};
   }
 
   /** Forward a DOM Event into the Worker as a message */
@@ -62,8 +39,8 @@ export default ({ worker }) => {
       return false;
     }
 
-    let event = { type: e.type };
-    if (e.target) { 
+    let event = {type: e.type};
+    if (e.target) {
       event.target = e.target.__id;
     }
 
@@ -75,7 +52,7 @@ export default ({ worker }) => {
     for (let i in e) {
       let v = e[i];
       const typeOfV = typeof v;
-      if (typeOfV !== 'object' && typeOfV !== 'function' 
+      if (typeOfV !== 'object' && typeOfV !== 'function'
           && i !== i.toUpperCase() && !event.hasOwnProperty(i)) {
         event[i] = v;
       }
@@ -94,7 +71,7 @@ export default ({ worker }) => {
         let dist = Math.sqrt(Math.pow(t.pageX - touch.pageX, 2) + Math.pow(t.pageY - touch.pageY, 2));
         if (dist < 10) {
           event.type = 'click';
-          worker.postMessage({ type: 'event', event });
+          worker.postMessage({type: 'event', event});
         }
       }
     }
@@ -109,28 +86,29 @@ export default ({ worker }) => {
    */
   function createNode(skel) {
     let node;
-    if (skel.nodeType===3) {
+    if (skel.nodeType === 3) {
       node = document.createTextNode(skel.data);
-    }
-    else if (skel.nodeType===1) {
+    } else if (skel.nodeType === 1) {
       node = document.createElement(skel.nodeName);
       if (skel.className) {
         node.className = skel.className;
       }
       if (skel.style) {
-        for (let i in skel.style) if (skel.style.hasOwnProperty(i)) {
-          node.style[i] = skel.style[i];
+        for (let i in skel.style) {
+          if (skel.style.hasOwnProperty(i)) {
+            node.style[i] = skel.style[i];
+          }
         }
       }
       if (skel.attributes) {
-        for (let i=0; i<skel.attributes.length; i++) {
+        for (let i = 0; i < skel.attributes.length; i++) {
           let a = skel.attributes[i];
           // @TODO .ns
           node.setAttribute(a.name, a.value);
         }
       }
       if (skel.childNodes) {
-        for (let i=0; i<skel.childNodes.length; i++) {
+        for (let i = 0; i < skel.childNodes.length; i++) {
           node.appendChild(createNode(skel.childNodes[i]));
         }
       }
@@ -144,15 +122,15 @@ export default ({ worker }) => {
   /** Apply MutationRecord mutations, keyed by type. */
   const MUTATIONS = {
     /** Handles element insertion & deletion */
-    childList({ target, removedNodes, addedNodes, previousSibling, nextSibling }) {
+    childList({target, removedNodes, addedNodes, previousSibling, nextSibling}) {
       let parent = getNode(target);
       if (removedNodes) {
-        for (let i=removedNodes.length; i--; ) {
+        for (let i = removedNodes.length; i--; ) {
           parent.removeChild(getNode(removedNodes[i]));
         }
       }
       if (addedNodes) {
-        for (let i=0; i<addedNodes.length; i++) {
+        for (let i = 0; i < addedNodes.length; i++) {
           let newNode = getNode(addedNodes[i]);
           if (!newNode) {
             newNode = createNode(addedNodes[i]);
@@ -162,11 +140,11 @@ export default ({ worker }) => {
       }
     },
     /** Handles attribute addition, change, removal */
-    attributes({ target, attributeName }) {
+    attributes({target, attributeName}) {
       let val;
-      for (let i=target.attributes.length; i--; ) {
+      for (let i = target.attributes.length; i--; ) {
         let p = target.attributes[i];
-        if (p.name===attributeName) {
+        if (p.name === attributeName) {
           val = p.value;
           break;
         }
@@ -174,11 +152,11 @@ export default ({ worker }) => {
       getNode(target).setAttribute(attributeName, val);
     },
     /** Handles Text node content changes */
-    characterData({ target, oldValue }) {
+    characterData({target, oldValue}) {
       getNode(target).nodeValue = target.data;
     },
     /** [Non-standard] Handles property updates */
-    properties({ target, propertyName, oldValue, newValue }) {
+    properties({target, propertyName, oldValue, newValue}) {
       const node = getNode(target);
       node[propertyName] = newValue;
     },
@@ -197,13 +175,15 @@ export default ({ worker }) => {
 
   // Check if an Element is at least partially visible
   function isElementInViewport(el, cache) {
-    if (el.nodeType===3) el = el.parentNode;
+    if (el.nodeType === 3) {
+      el = el.parentNode;
+    }
     let bbox = el.getBoundingClientRect();
     return (
-      bbox.bottom>=0 &&
-      bbox.right>=0 &&
-      bbox.top<=(cache.height || (cache.height = window.innerHeight)) &&
-      bbox.left<=(cache.width || (cache.width = window.innerWidth))
+      bbox.bottom >= 0 &&
+      bbox.right >= 0 &&
+      bbox.top <= (cache.height || (cache.height = window.innerHeight)) &&
+      bbox.left <= (cache.width || (cache.width = window.innerWidth))
     );
   }
 
@@ -216,15 +196,20 @@ export default ({ worker }) => {
       cache = {},
       useVis = (document.getElementById('#use-vis') || cache).checked,
       i;
-    for (i=0; i<q.length; i++) {
-      if (isDeadline ? deadline.timeRemaining()<=0 : (Date.now()-start)>1 ) break;
-
+    for (i = 0; i < q.length; i++) {
+      if (isDeadline
+          ? deadline.timeRemaining() <= 0
+          : (Date.now() - start) > 1) {
+        break;
+      }
       let m = q[i];
 
       // if the element is offscreen, skip any text or attribute changes:
-      if (useVis && (m.type==='characterData' || m.type==='attributes')) {
+      if (useVis && (m.type === 'characterData' || m.type === 'attributes')) {
         let target = getNode(m.target);
-        if (target && !isElementInViewport(target, cache)) continue;
+        if (target && !isElementInViewport(target, cache)) {
+          continue;
+        }
       }
 
       // remove mutation from the queue and apply it:
@@ -237,7 +222,6 @@ export default ({ worker }) => {
 
 
   function doProcessMutationQueue() {
-    // requestAnimationFrame(processMutationQueue);
     clearTimeout(timer);
     timer = setTimeout(processMutationQueue, 100);
     requestIdleCallback(processMutationQueue);
@@ -247,22 +231,20 @@ export default ({ worker }) => {
   // Add a MutationRecord to the queue
   function queueMutation(mutation) {
     // for single-node updates, merge into pending updates
-    if (mutation.type==='characterData' || mutation.type==='attributes') {
-      for (let i=MUTATION_QUEUE.length; i--; ) {
+    if (mutation.type === 'characterData' || mutation.type === 'attributes') {
+      for (let i = MUTATION_QUEUE.length; i--; ) {
         let m = MUTATION_QUEUE[i];
-        // eslint-disable-next-line eqeqeq
-        if (m.type==mutation.type && m.target.__id==mutation.target.__id) {
-          if (m.type==='attributes') {
-            MUTATION_QUEUE.splice(i+1, 0, mutation);
-          }
-          else {
+        if (m.type == mutation.type && m.target.__id == mutation.target.__id) {
+          if (m.type === 'attributes') {
+            MUTATION_QUEUE.splice(i + 1, 0, mutation);
+          } else {
             MUTATION_QUEUE[i] = mutation;
           }
           return;
         }
       }
     }
-    if (MUTATION_QUEUE.push(mutation)===1) {
+    if (MUTATION_QUEUE.push(mutation) === 1) {
       doProcessMutationQueue();
     }
   }
@@ -272,9 +254,9 @@ export default ({ worker }) => {
   // const array = new Int32Array(buffer);
   // Atomics.store(array, 0, 123);
 
-  worker.onmessage = ({ data }) => {
-    if (data.type==='MutationRecord') {
-      for (let i=0; i<data.mutations.length; i++) {
+  worker.onmessage = ({data}) => {
+    if (data.type === 'MutationRecord') {
+      for (let i = 0; i < data.mutations.length; i++) {
         queueMutation(data.mutations[i]);
       }
     }

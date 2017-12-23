@@ -3,7 +3,7 @@
  */
 
 function assign(obj, props) {
-  for (let i in props) obj[i] = props[i];  // eslint-disable-line guard-for-in
+  for (let i in props) obj[i] = props[i]; // eslint-disable-line guard-for-in
 }
 
 function toLower(str) {
@@ -11,23 +11,31 @@ function toLower(str) {
 }
 
 function createAttributeFilter(ns, name) {
-  return o => o.ns===ns && toLower(o.name)===toLower(name);
+  return (o) => o.ns === ns && toLower(o.name) === toLower(name);
 }
 
 function splice(arr, item, add, byValueOnly) {
   let i = arr ? findWhere(arr, item, true, byValueOnly) : -1;
-  if (~i) add ? arr.splice(i, 0, add) : arr.splice(i, 1);
+  if (~i) {
+    add
+        ? arr.splice(i, 0, add)
+        : arr.splice(i, 1);
+  }
   return i;
 }
 
 function findWhere(arr, fn, returnIndex, byValueOnly) {
   let i = arr.length;
-  while (i--) if (typeof fn==='function' && !byValueOnly ? fn(arr[i]) : arr[i]===fn) break;
+  while (i--) {
+    if (typeof fn === 'function' && !byValueOnly
+        ? fn(arr[i])
+        : arr[i] === fn) {
+      break;
+    }
+  }
   return returnIndex ? i : arr[i];
 }
 
-let resolved = typeof Promise!=='undefined' && Promise.resolve();
-const setImmediate = resolved ? (f => { resolved.then(f); }) : setTimeout;
 
 /*
  * undom.js
@@ -64,33 +72,40 @@ function undom() {
       child.remove();
       child.parentNode = this;
       this.childNodes.push(child);
-      if (this.children && child.nodeType===1) this.children.push(child);
-      mutation(this, 'childList', { addedNodes:[child], previousSibling:this.childNodes[this.childNodes.length-2] });
+      if (this.children && child.nodeType === 1) {
+        this.children.push(child);
+      }
+      mutation(this, 'childList', {addedNodes: [child], previousSibling: this.childNodes[this.childNodes.length - 2]});
     }
     insertBefore(child, ref) {
       child.remove();
       let i = splice(this.childNodes, ref, child), ref2;
       if (!ref) {
         this.appendChild(child);
-      }
-      else {
-        if (~i && child.nodeType===1) {
-          while (i<this.childNodes.length && (ref2 = this.childNodes[i]).nodeType!==1 || ref===child) i++;
-          if (ref2) splice(this.children, ref, child);
+      } else {
+        if (~i && child.nodeType === 1) {
+          while (i < this.childNodes.length && (ref2 = this.childNodes[i]).nodeType !== 1 || ref === child) {
+            i++;
+          }
+          if (ref2) {
+            splice(this.children, ref, child);
+          }
         }
-        mutation(this, 'childList', { addedNodes:[child], nextSibling:ref });
+        mutation(this, 'childList', {addedNodes: [child], nextSibling: ref});
       }
     }
     replaceChild(child, ref) {
-      if (ref.parentNode===this) {
+      if (ref.parentNode === this) {
         this.insertBefore(child, ref);
         ref.remove();
       }
     }
     removeChild(child) {
       let i = splice(this.childNodes, child);
-      if (child.nodeType===1) splice(this.children, child);
-      mutation(this, 'childList', { removedNodes:[child], previousSibling:this.childNodes[i-1], nextSibling:this.childNodes[i] });
+      if (child.nodeType === 1) {
+        splice(this.children, child);
+      }
+      mutation(this, 'childList', {removedNodes: [child], previousSibling: this.childNodes[i - 1], nextSibling: this.childNodes[i]});
     }
     remove() {
       if (this.parentNode) this.parentNode.removeChild(this);
@@ -100,8 +115,7 @@ function undom() {
 
   class Text extends Node {
     constructor(text) {
-      super(3, '#text');          // TEXT_NODE
-      // this.textContent = this.nodeValue = text;
+      super(3, '#text'); // TEXT_NODE
       this.data = text;
     }
     get textContent() {
@@ -110,7 +124,7 @@ function undom() {
     set textContent(value) {
       let oldValue = this.data;
       this.data = value;
-      mutation(this, 'characterData', { oldValue });
+      mutation(this, 'characterData', {oldValue});
     }
     get nodeValue() {
       return this.data;
@@ -123,25 +137,29 @@ function undom() {
 
   class Element extends Node {
     constructor(nodeType, nodeName) {
-      super(nodeType || 1, nodeName);   // ELEMENT_NODE
+      super(nodeType || 1, nodeName); // ELEMENT_NODE
       this.attributes = [];
       this.children = [];
       this.__handlers = {};
       this.style = {};
       Object.defineProperty(this, 'className', {
-        set: val => { this.setAttribute('class', val); },
-        get: () => this.getAttribute('style')
+        set: (val) => {
+      this.setAttribute('class', val);
+      },
+        get: () => this.getAttribute('style'),
       });
       Object.defineProperty(this.style, 'cssText', {
-        set: val => { this.setAttribute('style', val); },
-        get: () => this.getAttribute('style')
+        set: (val) => {
+          this.setAttribute('style', val);
+        },
+        get: () => this.getAttribute('style'),
       });
     }
 
     setAttribute(key, value) {
       this.setAttributeNS(null, key, value);
     }
-    
+
     getAttribute(key) {
       return this.getAttributeNS(null, key);
     }
@@ -153,11 +171,13 @@ function undom() {
     setAttributeNS(ns, name, value) {
       let attr = findWhere(this.attributes, createAttributeFilter(ns, name)),
         oldValue = attr && attr.value;
-      if (!attr) this.attributes.push(attr = { ns, name });
+      if (!attr) {
+        this.attributes.push(attr = {ns, name});
+      }
       attr.value = String(value);
-      mutation(this, 'attributes', { attributeName:name, attributeNamespace:ns, oldValue });
+      mutation(this, 'attributes', {attributeName: name, attributeNamespace: ns, oldValue});
     }
-    
+
     getAttributeNS(ns, name) {
       let attr = findWhere(this.attributes, createAttributeFilter(ns, name));
       return attr && attr.value;
@@ -165,7 +185,7 @@ function undom() {
 
     removeAttributeNS(ns, name) {
       splice(this.attributes, createAttributeFilter(ns, name));
-      mutation(this, 'attributes', { attributeName:name, attributeNamespace:ns, oldValue:this.getAttributeNS(ns, name) });
+      mutation(this, 'attributes', {attributeName: name, attributeNamespace: ns, oldValue: this.getAttributeNS(ns, name)});
     }
 
     addEventListener(type, handler) {
@@ -182,10 +202,14 @@ function undom() {
         l, i;
       do {
         l = t.__handlers && t.__handlers[toLower(event.type)];
-        if (l) for (i=l.length; i--; ) {
-          if ((l[i].call(t, event)===false || event._end) && c) break;
+        if (l) {
+          for (i = l.length; i--; ) {
+            if ((l[i].call(t, event) === false || event._end) && c) {
+              break;
+            }
+          }
         }
-      } while (event.bubbles && !(c && event._stop) && (event.target=t=t.parentNode));
+      } while (event.bubbles && !(c && event._stop) && (event.target = t = t.parentNode));
       return !event.defaultPrevented;
     }
   }
@@ -199,7 +223,7 @@ function undom() {
       super(nodeType || 1, nodeName);
       this.value_ = null;
       Object.defineProperty(this, 'value', {
-        set: val => this.setValue(val),
+        set: (val) => this.setValue(val),
         get: this.getValue.bind(this),
       });
     }
@@ -225,7 +249,7 @@ function undom() {
 
   class Document extends Element {
     constructor() {
-      super(9, '#document');      // DOCUMENT_NODE
+      super(9, '#document'); // DOCUMENT_NODE
     }
   }
 
@@ -253,19 +277,21 @@ function undom() {
     record.target = target;
     record.type = type;
 
-    for (let i=observers.length; i--; ) {
-      let ob = observers[i],
-        match = target===ob._target;
+    for (let i = observers.length; i--; ) {
+      let ob = observers[i];
+      let match = target === ob._target;
       if (!match && ob._options.subtree) {
         do {
-          if ((match = target===ob._target)) break;
-        } while ((target=target.parentNode));
+          if ((match = target === ob._target)) {
+            break;
+          }
+        } while ((target = target.parentNode));
       }
       if (match) {
         ob._records.push(record);
         if (!pendingMutations) {
           pendingMutations = true;
-          setImmediate(flushMutations);
+          Promise.resolve().then(flushMutations);
         }
       }
     }
@@ -273,7 +299,7 @@ function undom() {
 
   function flushMutations() {
     pendingMutations = false;
-    for (let i=observers.length; i--; ) {
+    for (let i = observers.length; i--; ) {
       let ob = observers[i];
       if (ob._records.length) {
         ob.callback(ob.takeRecords());
@@ -303,7 +329,7 @@ function undom() {
 
 
   function createElement(type) {
-    // TODO(willchou): Needs a lot more to support a robust 
+    // TODO(willchou): Needs a lot more to support a robust
     // set of properties from Element subclasses.
     const t = String(type).toUpperCase();
     switch (t) {
@@ -327,8 +353,8 @@ function undom() {
 
   function createDocument() {
     let document = new Document();
-    assign(document, document.defaultView = { document, MutationObserver, Document, Node, Text, Element, SVGElement, Event });
-    assign(document, { documentElement:document, createElement, createElementNS, createTextNode });
+    assign(document, document.defaultView = {document, MutationObserver, Document, Node, Text, Element, SVGElement, Event});
+    assign(document, {documentElement: document, createElement, createElementNS, createTextNode});
     document.appendChild(document.body = createElement('body'));
     return document;
   }

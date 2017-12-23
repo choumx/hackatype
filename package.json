@@ -41,9 +41,29 @@
   },
   "dependencies": {
     "browserify": "^14.5.0",
+    "eslint": "^4.13.1",
+    "eslint-config-google": "^0.9.1",
     "preact": "^7.1.0",
     "preact-router": "^2.3.2",
     "todomvc-app-css": "^2.0.3",
     "todomvc-common": "^1.0.2"
+  },
+  "eslintConfig": {
+    "extends": ["google"],
+    "parserOptions": {
+      "ecmaVersion": 6,
+      "sourceType": "module",
+      "ecmaFeatures": {
+        "browser": true,
+        "jsx": true
+      }
+    },
+    "rules": {
+      "require-jsdoc": "off",
+      "valid-jsdoc": "off",
+      "max-len": "off",
+      "no-unused-vars": "off",
+      "space-infix-ops": "warn"
+    }
   }
 }
