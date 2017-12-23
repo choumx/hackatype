@@ -1,14 +1,23 @@
+// TODO(willchou)
+// 1. Worker -> DOM mutations work, but what about DOM -> worker? E.g. <input> changes.
 
 /** Events that should not be proxied into the Worker's DOM */
-const EVENT_BLACKLIST = 'mousewheel wheel animationstart animationiteration animationend devicemotion deviceorientation deviceorientationabsolute'.split(' ');
+// const EVENT_BLACKLIST = [
+//   'mousewheel', 
+//   'wheel', 
+//   'animationstart', 
+//   'animationiteration', 
+//   'animationend', 
+//   'devicemotion', 
+//   'deviceorientation', 
+//   'deviceorientationabsolute',
+// ];
 
-
-/** Options for global addEventListener */
-const EVENT_OPTS = {
-  capture: true,
-  passive: true
-};
-
+const EVENT_WHITELIST = [
+  'change',
+  'click',
+  'focus',
+];
 
 /** Sets up a bidirectional DOM Mutation+Event proxy to a Workerized app.
  *  @param {Worker} opts.worker   The WebWorker instance to proxy to.
@@ -18,30 +27,26 @@ export default ({ worker }) => {
 
   /** Returns the real DOM Element corresponding to a serialized Element object. */
   function getNode(node) {
-    if (!node) return null;
-    if (node.nodeName==='BODY') return document.body;
+    if (!node) {
+      return null;
+    }
+    if (node.nodeName === 'BODY') {
+      return document.body;
+    }
     return NODES.get(node.__id);
   }
 
-
-  // feature-detect support for event listener options
-  let supportsPassive = false;
-  try {
-    addEventListener('test', null, {
-      get passive() { supportsPassive = true; }
-    });
-  } catch (e) {}
-
-
   /** Loop over all "on*" event names on Window and set up a proxy handler for each. */
-  // eslint-disable-next-line guard-for-in
   for (let i in window) {
     let m = i.substring(2);
-    if (i.substring(0,2)==='on' && i===i.toLowerCase() && EVENT_BLACKLIST.indexOf(m)<0 && (window[i]===null || typeof window[i]==='function')) {
-      addEventListener(m, proxyEvent, supportsPassive ? EVENT_OPTS : true);
+    if (i.substring(0, 2) === 'on' 
+        && i === i.toLowerCase() 
+        && EVENT_WHITELIST.indexOf(m) >= 0
+        // && EVENT_BLACKLIST.indexOf(m) < 0 
+        && (window[i] === null || typeof window[i] === 'function')) {
+      addEventListener(m, proxyEvent, {capture: true, passive: true});
     }
   }
-
 
   let touch;
 
@@ -53,31 +58,40 @@ export default ({ worker }) => {
 
   /** Forward a DOM Event into the Worker as a message */
   function proxyEvent(e) {
-    if (e.type==='click' && touch) return false;
+    if (e.type === 'click' && touch) {
+      return false;
+    }
 
     let event = { type: e.type };
-    if (e.target) event.target = e.target.__id;
-    // eslint-disable-next-line guard-for-in
+    if (e.target) { 
+      event.target = e.target.__id;
+    }
+
+    if ('value' in e.target) {
+      event.__value = e.target.value;
+    }
+
     for (let i in e) {
       let v = e[i];
-      if (typeof v!=='object' && typeof v!=='function' && i!==i.toUpperCase() && !event.hasOwnProperty(i)) {
+      const typeOfV = typeof v;
+      if (typeOfV !== 'object' && typeOfV !== 'function' 
+          && i !== i.toUpperCase() && !event.hasOwnProperty(i)) {
         event[i] = v;
       }
     }
 
     worker.postMessage({
       type: 'event',
-      event
+      event,
     });
 
-    if (e.type==='touchstart') {
+    if (e.type === 'touchstart') {
       touch = getTouch(e);
-    }
-    else if (e.type==='touchend' && touch) {
+    } else if (e.type === 'touchend' && touch) {
       let t = getTouch(e);
       if (t) {
-        let delta = Math.sqrt( Math.pow(t.pageX - touch.pageX, 2) + Math.pow(t.pageY - touch.pageY, 2) );
-        if (delta<10) {
+        let dist = Math.sqrt(Math.pow(t.pageX - touch.pageX, 2) + Math.pow(t.pageY - touch.pageY, 2));
+        if (dist < 10) {
           event.type = 'click';
           worker.postMessage({ type: 'event', event });
         }
@@ -161,7 +175,12 @@ export default ({ worker }) => {
     /** Handles Text node content changes */
     characterData({ target, oldValue }) {
       getNode(target).nodeValue = target.data;
-    }
+    },
+    /** [Non-standard] Handles property updates */
+    properties({ target, propertyName, oldValue, newValue }) {
+      const node = getNode(target);
+      node[propertyName] = newValue;
+    },
   };
 
 

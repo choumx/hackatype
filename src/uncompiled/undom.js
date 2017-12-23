@@ -141,9 +141,11 @@ function undom() {
     setAttribute(key, value) {
       this.setAttributeNS(null, key, value);
     }
+    
     getAttribute(key) {
       return this.getAttributeNS(null, key);
     }
+
     removeAttribute(key) {
       this.removeAttributeNS(null, key);
     }
@@ -155,10 +157,12 @@ function undom() {
       attr.value = String(value);
       mutation(this, 'attributes', { attributeName:name, attributeNamespace:ns, oldValue });
     }
+    
     getAttributeNS(ns, name) {
       let attr = findWhere(this.attributes, createAttributeFilter(ns, name));
       return attr && attr.value;
     }
+
     removeAttributeNS(ns, name) {
       splice(this.attributes, createAttributeFilter(ns, name));
       mutation(this, 'attributes', { attributeName:name, attributeNamespace:ns, oldValue:this.getAttributeNS(ns, name) });
@@ -167,9 +171,11 @@ function undom() {
     addEventListener(type, handler) {
       (this.__handlers[toLower(type)] || (this.__handlers[toLower(type)] = [])).push(handler);
     }
+
     removeEventListener(type, handler) {
       splice(this.__handlers[toLower(type)], handler, 0, true);
     }
+
     dispatchEvent(event) {
       let t = event.currentTarget = this,
         c = event.cancelable,
@@ -186,6 +192,24 @@ function undom() {
 
 
   class SVGElement extends Element {}
+
+
+  class HTMLInputElement extends Element {
+    constructor(nodeType, nodeName) {
+      super(nodeType, nodeName);
+      this.value_ = null;
+      Object.defineProperty(this, 'value', {
+        set: val => this.setValue(val),
+        get: () => this.value_,
+      });
+    }
+
+    setValue(v) {
+      const oldValue = this.value_;
+      this.value_ = v;
+      mutation(this, 'properties', {oldValue, newValue: v});
+    }
+  }
 
 
   class Document extends Element {
@@ -212,7 +236,8 @@ function undom() {
     }
   }
 
-
+  // TOOD(willchou): Property updates are not supported by official MutationObserver.
+  // Extend worker MutationObserver polyfill to support properties?
   function mutation(target, type, record) {
     record.target = target;
     record.type = type;
@@ -267,7 +292,13 @@ function undom() {
 
 
   function createElement(type) {
-    return new Element(null, String(type).toUpperCase());
+    // TODO(willchou): Needs a lot more to support a robust 
+    // set of properties from Element subclasses.
+    const t = String(type).toUpperCase();
+    switch (t) {
+      case 'INPUT': return new HTMLInputElement(null, t);
+      default: return new Element(null, t);
+    }
   }
 
 

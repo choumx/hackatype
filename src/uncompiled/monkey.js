@@ -43,16 +43,29 @@ const NODES = new Map();
 
 function getNode(node) {
   let id;
-  if (node && typeof node==='object') id = node.__id;
-  if (typeof node==='string') id = node;
-  if (!id) return null;
-  if (node.nodeName==='BODY') return document.body;
-  return NODES.get(id);
+  if (node && typeof node === 'object') {
+    id = node.__id;
+  }
+  if (typeof node === 'string') {
+    id = node;
+  }
+  if (!id) {
+    return null;
+  }
+  if (node.nodeName === 'BODY') {
+    return document.body;
+  }
+  const n = NODES.get(id);
+  return n;
 }
 
 function handleEvent(event) {
   let target = getNode(event.target);
   if (target) {
+    // Update worker DOM with user changes to <input> etc.
+    if ('__value' in event) {
+      target.value = event.__value;
+    }
     event.target = target;
     event.bubbles = true;
     target.dispatchEvent(event);
