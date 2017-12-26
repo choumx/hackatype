@@ -158,6 +158,7 @@ export default ({worker}) => {
     /** [Non-standard] Handles property updates */
     properties({target, propertyName, oldValue, newValue}) {
       const node = getNode(target);
+      console.assert(node);
       node[propertyName] = newValue;
     },
   };
@@ -217,7 +218,9 @@ export default ({worker}) => {
     }
 
     // still remaining work to be done
-    if (q.length) doProcessMutationQueue();
+    if (q.length) {
+      doProcessMutationQueue();
+    }
   }
 
 
@@ -254,11 +257,50 @@ export default ({worker}) => {
   // const array = new Int32Array(buffer);
   // Atomics.store(array, 0, 123);
 
+  /**
+   * Recursively hydrates AOT-rendered element `target` with worker-rendered `pseudoElement`.
+   * @param {*} target
+   * @param {*} pseudoElement
+   */
+  function hydrate(target, pseudoElement) {
+    console.assert(target.nodeType == pseudoElement.nodeType);
+    console.assert(target.nodeName == pseudoElement.nodeName);
+    console.assert(target.childNodes.length == pseudoElement.childNodes.length);
+    console.assert(!target.__id && pseudoElement.__id);
+
+    const __id = pseudoElement.__id;
+    target.__id = __id;
+    NODES.set(__id, target);
+
+    for (let i = 0; i < pseudoElement.childNodes.length; i++) {
+      hydrate(target.childNodes[i], pseudoElement.childNodes[i]);
+    }
+  }
+
+  let initialRender = true;
+  const aotRoot = document.querySelector('[amp-aot]');
+
   worker.onmessage = ({data}) => {
     if (data.type === 'MutationRecord') {
       for (let i = 0; i < data.mutations.length; i++) {
-        queueMutation(data.mutations[i]);
+        const mutation = data.mutations[i];
+
+        // TODO: Improve heuristic for identifying initial render.
+        if (initialRender && aotRoot) {
+          // Check if mutation record looks like the root containing `amp-aot` attr.
+          // If so, set __id on all matching DOM elements.
+          console.log('Hydrating AOT root...');
+          console.assert(mutation.type == 'childList' && mutation.addedNodes);
+          mutation.addedNodes.forEach(n => hydrate(aotRoot, n));
+          continue;
+        } else if (initialRender) {
+          console.warn('No AOT root found!');
+        }
+
+        queueMutation(mutation);
       }
+
+      initialRender = false;
     }
     // console.log('Array now contains: ' + array[0]); // Testing SAB.
   };
