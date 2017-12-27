@@ -25,7 +25,7 @@ export default ({worker}) => {
     addEventListener(e, proxyEvent, {capture: true, passive: true});
   });
 
-  let touch;
+  let touchStart;
 
   /** Derives {pageX,pageY} coordinates from a mouse or touch event. */
   function getTouch(e) {
@@ -35,7 +35,7 @@ export default ({worker}) => {
 
   /** Forward a DOM Event into the Worker as a message */
   function proxyEvent(e) {
-    if (e.type === 'click' && touch) {
+    if (e.type === 'click' && touchStart) {
       return false;
     }
 
@@ -45,6 +45,7 @@ export default ({worker}) => {
     }
 
     // For change events, update worker with new `value` prop.
+    // TODO(willchou): Generify this special-case.
     if (e.type == 'change' && 'value' in e.target) {
       event.__value = e.target.value;
     }
@@ -63,12 +64,13 @@ export default ({worker}) => {
       event,
     });
 
+    // Recategorize very close touchstart/touchend events as clicks.
     if (e.type === 'touchstart') {
-      touch = getTouch(e);
-    } else if (e.type === 'touchend' && touch) {
-      let t = getTouch(e);
-      if (t) {
-        let dist = Math.sqrt(Math.pow(t.pageX - touch.pageX, 2) + Math.pow(t.pageY - touch.pageY, 2));
+      touchStart = getTouch(e);
+    } else if (e.type === 'touchend' && touchStart) {
+      let touchEnd = getTouch(e);
+      if (touchEnd) {
+        let dist = Math.sqrt(Math.pow(touchEnd.pageX - touchStart.pageX, 2) + Math.pow(touchEnd.pageY - touchStart.pageY, 2));
         if (dist < 10) {
           event.type = 'click';
           worker.postMessage({type: 'event', event});
@@ -84,37 +86,35 @@ export default ({worker}) => {
   * @example <caption>Element node</caption>
   *   createNode({ nodeType:1, nodeName:'div', attributes:[{ name:'a', value:'b' }], childNodes:[ ... ] })
    */
-  function createNode(skel) {
+  function createNode(skeleton) {
     let node;
-    if (skel.nodeType === 3) {
-      node = document.createTextNode(skel.data);
-    } else if (skel.nodeType === 1) {
-      node = document.createElement(skel.nodeName);
-      if (skel.className) {
-        node.className = skel.className;
+    if (skeleton.nodeType === Node.TEXT_NODE) {
+      node = document.createTextNode(skeleton.data);
+    } else if (skeleton.nodeType === Node.ELEMENT_NODE) {
+      node = document.createElement(skeleton.nodeName);
+      if (skeleton.className) {
+        node.className = skeleton.className;
       }
-      if (skel.style) {
-        for (let i in skel.style) {
-          if (skel.style.hasOwnProperty(i)) {
-            node.style[i] = skel.style[i];
+      if (skeleton.style) {
+        for (let i in skeleton.style) {
+          if (skeleton.style.hasOwnProperty(i)) {
+            node.style[i] = skeleton.style[i];
           }
         }
       }
-      if (skel.attributes) {
-        for (let i = 0; i < skel.attributes.length; i++) {
-          let a = skel.attributes[i];
-          // @TODO .ns
+      if (skeleton.attributes) {
+        for (let i = 0; i < skeleton.attributes.length; i++) {
+          const a = skeleton.attributes[i];
           node.setAttribute(a.name, a.value);
         }
       }
-      if (skel.childNodes) {
-        for (let i = 0; i < skel.childNodes.length; i++) {
-          node.appendChild(createNode(skel.childNodes[i]));
+      if (skeleton.childNodes) {
+        for (let i = 0; i < skeleton.childNodes.length; i++) {
+          node.appendChild(createNode(skeleton.childNodes[i]));
         }
       }
     }
-    node.__id = skel.__id;
-    NODES.set(skel.__id, node);
+    bindNodeToSkeletonId(node, skeleton.__id);
     return node;
   }
 
@@ -163,12 +163,6 @@ export default ({worker}) => {
     },
   };
 
-
-  /** Apply a MutationRecord to the DOM */
-  function applyMutation(mutation) {
-    MUTATIONS[mutation.type](mutation);
-  }
-
   let timer;
 
   // stores pending DOM changes (MutationRecord objects)
@@ -191,13 +185,13 @@ export default ({worker}) => {
   // Attempt to flush & process as many MutationRecords as possible from the queue
   function processMutationQueue(deadline) {
     clearTimeout(timer);
-    let q = MUTATION_QUEUE,
-      start = Date.now(),
-      isDeadline = deadline && deadline.timeRemaining,
-      cache = {},
-      useVis = (document.getElementById('#use-vis') || cache).checked,
-      i;
-    for (i = 0; i < q.length; i++) {
+
+    const q = MUTATION_QUEUE;
+    const start = Date.now();
+    const isDeadline = deadline && deadline.timeRemaining;
+    const cache = {};
+
+    for (let i = 0; i < q.length; i++) {
       if (isDeadline
           ? deadline.timeRemaining() <= 0
           : (Date.now() - start) > 1) {
@@ -206,7 +200,7 @@ export default ({worker}) => {
       let m = q[i];
 
       // if the element is offscreen, skip any text or attribute changes:
-      if (useVis && (m.type === 'characterData' || m.type === 'attributes')) {
+      if (m.type === 'characterData' || m.type === 'attributes') {
         let target = getNode(m.target);
         if (target && !isElementInViewport(target, cache)) {
           continue;
@@ -214,7 +208,8 @@ export default ({worker}) => {
       }
 
       // remove mutation from the queue and apply it:
-      applyMutation(q.splice(i--, 1)[0]);
+      const mutation = q.splice(i--, 1)[0];
+      MUTATIONS[mutation.type](mutation);
     }
 
     // still remaining work to be done
@@ -252,33 +247,47 @@ export default ({worker}) => {
     }
   }
 
-  // Testing SAB.
-  // const buffer = new SharedArrayBuffer(Int32Array.BYTES_PER_ELEMENT * 1);
-  // const array = new Int32Array(buffer);
-  // Atomics.store(array, 0, 123);
+  /**
+   * Establish link between DOM element `el` and worker-generated identifier `id`.
+   * @param {*} el
+   * @param {*} id
+   */
+  function bindNodeToSkeletonId(el, id) {
+    el.__id = id;
+    NODES.set(id, el);
+  }
 
   /**
-   * Recursively hydrates AOT-rendered element `target` with worker-rendered `pseudoElement`.
-   * @param {*} target
-   * @param {*} pseudoElement
+   * Recursively hydrates AOT rendered `node` with corresponding worker `skeleton`.
+   * @param {*} node
+   * @param {*} skeleton
    */
-  function hydrate(target, pseudoElement) {
-    console.assert(target.nodeType == pseudoElement.nodeType);
-    console.assert(target.nodeName == pseudoElement.nodeName);
-    console.assert(target.childNodes.length == pseudoElement.childNodes.length);
-    console.assert(!target.__id && pseudoElement.__id);
-
-    const __id = pseudoElement.__id;
-    target.__id = __id;
-    NODES.set(__id, target);
-
-    for (let i = 0; i < pseudoElement.childNodes.length; i++) {
-      hydrate(target.childNodes[i], pseudoElement.childNodes[i]);
+  function hydrate(node, skeleton) {
+    assertMatchesSkeleton(node, skeleton);
+    bindNodeToSkeletonId(node, skeleton.__id);
+    for (let i = 0; i < skeleton.childNodes.length; i++) {
+      hydrate(node.childNodes[i], skeleton.childNodes[i]);
     }
+  }
+
+  /**
+   * @param {*} node
+   * @param {*} skeleton
+   */
+  function assertMatchesSkeleton(node, skeleton) {
+    console.assert(node.nodeType == skeleton.nodeType);
+    console.assert(node.nodeName == skeleton.nodeName);
+    console.assert(node.childNodes.length == skeleton.childNodes.length);
+    console.assert(!node.__id && skeleton.__id);
   }
 
   let initialRender = true;
   const aotRoot = document.querySelector('[amp-aot]');
+
+  // Testing SAB.
+  // const buffer = new SharedArrayBuffer(Int32Array.BYTES_PER_ELEMENT * 1);
+  // const array = new Int32Array(buffer);
+  // Atomics.store(array, 0, 123);
 
   worker.onmessage = ({data}) => {
     if (data.type === 'MutationRecord') {
@@ -289,7 +298,7 @@ export default ({worker}) => {
         if (initialRender && aotRoot) {
           // Check if mutation record looks like the root containing `amp-aot` attr.
           // If so, set __id on all matching DOM elements.
-          console.log('Hydrating AOT root...');
+          console.log('Hydrating AOT root: ', aotRoot);
           console.assert(mutation.type == 'childList' && mutation.addedNodes);
           mutation.addedNodes.forEach(n => hydrate(aotRoot, n));
           continue;
