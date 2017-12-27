@@ -26,7 +26,18 @@ export default ({worker}) => {
     addEventListener(e, proxyEvent, {capture: true, passive: true});
   });
 
+  const GESTURE_TO_MUTATION_THRESHOLD = 1000; // Allow mutations up to 1s after user gesture.
+  let timeOfLastUserGesture = Date.now();
+
   let touchStart;
+
+  /**
+   * @param {*} message
+   */
+  function postToWorker(message) {
+    console.info(`Posting "${message.type}" to worker:`, message);
+    worker.postMessage(message);
+  }
 
   /** Derives {pageX,pageY} coordinates from a mouse or touch event. */
   function getTouch(e) {
@@ -36,6 +47,8 @@ export default ({worker}) => {
 
   /** Forward a DOM Event into the Worker as a message */
   function proxyEvent(e) {
+    timeOfLastUserGesture = Date.now();
+
     if (e.type === 'click' && touchStart) {
       return false;
     }
@@ -61,12 +74,10 @@ export default ({worker}) => {
       }
     }
 
-    worker.postMessage({
-      type: 'event',
-      event,
-    });
+    postToWorker({type: 'event', event});
 
     // Recategorize very close touchstart/touchend events as clicks.
+    // TODO(willchou): Unnecessary?
     if (e.type === 'touchstart') {
       touchStart = getTouch(e);
     } else if (e.type === 'touchend' && touchStart) {
@@ -75,7 +86,7 @@ export default ({worker}) => {
         let dist = Math.sqrt(Math.pow(touchEnd.pageX - touchStart.pageX, 2) + Math.pow(touchEnd.pageY - touchStart.pageY, 2));
         if (dist < 10) {
           event.type = 'click';
-          worker.postMessage({type: 'event', event});
+          postToWorker({type: 'event', event});
         }
       }
     }
@@ -120,10 +131,8 @@ export default ({worker}) => {
     return node;
   }
 
-
   /** Apply MutationRecord mutations, keyed by type. */
   const MUTATIONS = {
-    /** Handles element insertion & deletion */
     childList({target, removedNodes, addedNodes, previousSibling, nextSibling}) {
       let parent = getNode(target);
       if (removedNodes) {
@@ -141,7 +150,6 @@ export default ({worker}) => {
         }
       }
     },
-    /** Handles attribute addition, change, removal */
     attributes({target, attributeName}) {
       let val;
       for (let i = target.attributes.length; i--; ) {
@@ -153,11 +161,10 @@ export default ({worker}) => {
       }
       getNode(target).setAttribute(attributeName, val);
     },
-    /** Handles Text node content changes */
     characterData({target, oldValue}) {
       getNode(target).nodeValue = target.data;
     },
-    /** [Non-standard] Handles property updates */
+    // Non-standard MutationRecord for property changes.
     properties({target, propertyName, oldValue, newValue}) {
       const node = getNode(target);
       console.assert(node);
@@ -169,8 +176,9 @@ export default ({worker}) => {
   // stores pending DOM changes (MutationRecord objects)
   let MUTATION_QUEUE = [];
 
+  const windowSizeCache = {};
   // Check if an Element is at least partially visible
-  function isElementInViewport(el, cache) {
+  function isElementInViewport(el, cache = windowSizeCache) {
     if (el.nodeType === 3) {
       el = el.parentNode;
     }
@@ -184,52 +192,57 @@ export default ({worker}) => {
   }
 
   // Attempt to flush & process as many MutationRecords as possible from the queue
-  function processMutationQueue(deadline) {
+  function processMutations(deadline) {
     clearTimeout(mutationTimer);
 
-    const q = MUTATION_QUEUE;
     const start = Date.now();
     const isDeadline = deadline && deadline.timeRemaining;
-    const cache = {};
+    let timedOut = false;
 
-    for (let i = 0; i < q.length; i++) {
+    for (let i = 0; i < MUTATION_QUEUE.length; i++) {
       if (isDeadline
           ? deadline.timeRemaining() <= 0
           : (Date.now() - start) > 1) {
+        timedOut = true;
         break;
       }
-      let m = q[i];
+      const m = MUTATION_QUEUE[i];
+
+      const latency = m.received - timeOfLastUserGesture;
+      if (latency > GESTURE_TO_MUTATION_THRESHOLD) {
+        console.warn(`Mutation latency exceeded (${latency}). Queued until next gesture: `, m);
+        continue;
+      }
 
       // if the element is offscreen, skip any text or attribute changes:
       if (m.type === 'characterData' || m.type === 'attributes') {
         let target = getNode(m.target);
-        if (target && !isElementInViewport(target, cache)) {
+        if (target && !isElementInViewport(target)) {
           continue;
         }
       }
 
       // remove mutation from the queue and apply it:
-      const mutation = q.splice(i--, 1)[0];
+      const mutation = MUTATION_QUEUE.splice(i--, 1)[0];
       MUTATIONS[mutation.type](mutation);
     }
 
-    // still remaining work to be done
-    if (q.length) {
-      doProcessMutationQueue();
+    if (timedOut && MUTATION_QUEUE.length > 0) {
+      processMutationsSoon();
     }
   }
 
-
-  function doProcessMutationQueue() {
+  function processMutationsSoon() {
     clearTimeout(mutationTimer);
-    mutationTimer = setTimeout(processMutationQueue, 100);
-    requestIdleCallback(processMutationQueue);
+    mutationTimer = setTimeout(processMutations, 100);
+    requestIdleCallback(processMutations);
   }
 
+  function enqueueMutation(mutation) {
+    let merged = false;
 
-  // Add a MutationRecord to the queue
-  function queueMutation(mutation) {
-    // for single-node updates, merge into pending updates
+    // Merge/overwrite characterData & attribute mutations instead of queueing
+    // to avoid extra DOM mutations.
     if (mutation.type === 'characterData' || mutation.type === 'attributes') {
       for (let i = MUTATION_QUEUE.length; i--; ) {
         let m = MUTATION_QUEUE[i];
@@ -239,13 +252,16 @@ export default ({worker}) => {
           } else {
             MUTATION_QUEUE[i] = mutation;
           }
-          return;
+          merged = true;
         }
       }
     }
-    if (MUTATION_QUEUE.push(mutation) === 1) {
-      doProcessMutationQueue();
+
+    if (!merged) {
+      MUTATION_QUEUE.push(mutation);
     }
+
+    processMutationsSoon();
   }
 
   /**
@@ -291,24 +307,28 @@ export default ({worker}) => {
   // Atomics.store(array, 0, 123);
 
   worker.onmessage = ({data}) => {
-    if (data.type === 'MutationRecord') {
-      for (let i = 0; i < data.mutations.length; i++) {
-        const mutation = data.mutations[i];
+    console.info(`Received "${data.type}" from worker:`, data);
 
-        // TODO: Improve heuristic for identifying initial render.
+    if (data.type === 'MutationRecord') {
+      const now = Date.now();
+
+      data.mutations.forEach(mutation => {
+        mutation.received = now;
+
+        // TODO(willchou): Improve heuristic for identifying initial render.
         if (initialRender && aotRoot) {
           // Check if mutation record looks like the root containing `amp-aot` attr.
           // If so, set __id on all matching DOM elements.
-          console.log('Hydrating AOT root: ', aotRoot);
+          console.info('Hydrating AOT root: ', aotRoot);
           console.assert(mutation.type == 'childList' && mutation.addedNodes);
           mutation.addedNodes.forEach(n => hydrate(aotRoot, n));
-          continue;
+          return;
         } else if (initialRender) {
           console.warn('No AOT root found!');
         }
 
-        queueMutation(mutation);
-      }
+        enqueueMutation(mutation);
+      });
 
       initialRender = false;
     }
@@ -316,7 +336,7 @@ export default ({worker}) => {
   };
 
 
-  worker.postMessage({
+  postToWorker({
     type: 'init',
     location: location.href,
     // buffer, // Testing SAB.
