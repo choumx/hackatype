@@ -1,13 +1,14 @@
-const EVENTS_TO_PROXY = [
-  'change',
-  'click',
-  'focus',
-];
-
-/** Sets up a bidirectional DOM Mutation+Event proxy to a Workerized app.
- *  @param {Worker} opts.worker   The WebWorker instance to proxy to.
+/**
+ * Sets up a bidirectional DOM Mutation+Event proxy to a Workerized app.
+ * @param {Worker} opts.worker The WebWorker instance to proxy to.
  */
 export default ({worker}) => {
+  const EVENTS_TO_PROXY = [
+    'change',
+    'click',
+    'focus',
+  ];
+
   const NODES = new Map();
 
   /** Returns the real DOM Element corresponding to a serialized Element object. */
@@ -50,6 +51,7 @@ export default ({worker}) => {
       event.__value = e.target.value;
     }
 
+    // Copy properties from `e` to proxied `event`.
     for (let i in e) {
       let v = e[i];
       const typeOfV = typeof v;
@@ -163,8 +165,7 @@ export default ({worker}) => {
     },
   };
 
-  let timer;
-
+  let mutationTimer;
   // stores pending DOM changes (MutationRecord objects)
   let MUTATION_QUEUE = [];
 
@@ -184,7 +185,7 @@ export default ({worker}) => {
 
   // Attempt to flush & process as many MutationRecords as possible from the queue
   function processMutationQueue(deadline) {
-    clearTimeout(timer);
+    clearTimeout(mutationTimer);
 
     const q = MUTATION_QUEUE;
     const start = Date.now();
@@ -220,8 +221,8 @@ export default ({worker}) => {
 
 
   function doProcessMutationQueue() {
-    clearTimeout(timer);
-    timer = setTimeout(processMutationQueue, 100);
+    clearTimeout(mutationTimer);
+    mutationTimer = setTimeout(processMutationQueue, 100);
     requestIdleCallback(processMutationQueue);
   }
 
@@ -248,19 +249,19 @@ export default ({worker}) => {
   }
 
   /**
-   * Establish link between DOM element `el` and worker-generated identifier `id`.
-   * @param {*} el
-   * @param {*} id
+   * Establish link between DOM `node` and worker-generated identifier `id`.
+   * @param {!Node} node
+   * @param {string} id
    */
-  function bindNodeToSkeletonId(el, id) {
-    el.__id = id;
-    NODES.set(id, el);
+  function bindNodeToSkeletonId(node, id) {
+    node.__id = id;
+    NODES.set(id, node);
   }
 
   /**
    * Recursively hydrates AOT rendered `node` with corresponding worker `skeleton`.
-   * @param {*} node
-   * @param {*} skeleton
+   * @param {!Node} node
+   * @param {!Object} skeleton
    */
   function hydrate(node, skeleton) {
     assertMatchesSkeleton(node, skeleton);
@@ -271,8 +272,8 @@ export default ({worker}) => {
   }
 
   /**
-   * @param {*} node
-   * @param {*} skeleton
+   * @param {!Node} node
+   * @param {!Object} skeleton
    */
   function assertMatchesSkeleton(node, skeleton) {
     console.assert(node.nodeType == skeleton.nodeType);

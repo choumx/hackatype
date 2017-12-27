@@ -90,5 +90,37 @@ class TodoList extends Component {
   }
 }
 
+/** Timer example from https://reactjs.org */
+class Timer extends Component {
+  constructor(props) {
+    super(props);
+    this.state = { seconds: 0 };
+  }
+
+  tick() {
+    this.setState(prevState => ({
+      seconds: prevState.seconds + 1
+    }));
+  }
+
+  componentDidMount() {
+    this.interval = setInterval(() => this.tick(), 1000);
+  }
+
+  componentWillUnmount() {
+    clearInterval(this.interval);
+  }
+
+  render() {
+    return (
+      <div>
+        Seconds: {this.state.seconds}
+      </div>
+    );
+  }
+}
+
 // TODO(willchou): Support rendering to nodes other than body.
-render(<TodoApp />, document.body);
+// render(<Hello />, document.body);
+// render(<TodoApp />, document.body);
+render(<Timer />, document.body);
