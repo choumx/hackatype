@@ -3,7 +3,9 @@
  */
 
 function assign(obj, props) {
-  for (let i in props) obj[i] = props[i]; // eslint-disable-line guard-for-in
+  for (let i in props) { // eslint-disable-line guard-for-in
+    obj[i] = props[i];
+  }
 }
 
 function toLower(str) {
@@ -54,7 +56,6 @@ const NODE_TYPES = {
 };
 */
 
-
 /** Create a minimally viable DOM Document
  *  @returns {Document} document
  */
@@ -67,6 +68,13 @@ function undom() {
       this.nodeType = nodeType;
       this.nodeName = nodeName;
       this.childNodes = [];
+    }
+    /**
+     * True if this property is defined by this class or any of its superclasses.
+     * @returns {boolean}
+     */
+    propertyIsInherited(property) {
+      return ['nodeType', 'nodeName', 'childNodes', 'parentNode'].indexOf(property) >= 0;
     }
     appendChild(child) {
       child.remove();
@@ -112,11 +120,14 @@ function undom() {
     }
   }
 
-
   class Text extends Node {
     constructor(text) {
       super(3, '#text'); // TEXT_NODE
       this.data = text;
+    }
+    /** @override */
+    propertyIsInherited(property) {
+      return super.propertyIsInherited(property) || ['data'].indexOf(property) >= 0;
     }
     get textContent() {
       return this.data;
@@ -134,18 +145,20 @@ function undom() {
     }
   }
 
-
   class Element extends Node {
     constructor(nodeType, nodeName) {
       super(nodeType || 1, nodeName); // ELEMENT_NODE
+
       this.attributes = [];
       this.children = [];
-      this.__handlers = {};
       this.style = {};
+
+      this.__handlers = {};
+
       Object.defineProperty(this, 'className', {
         set: (val) => {
-      this.setAttribute('class', val);
-      },
+          this.setAttribute('class', val);
+        },
         get: () => this.getAttribute('style'),
       });
       Object.defineProperty(this.style, 'cssText', {
@@ -155,19 +168,19 @@ function undom() {
         get: () => this.getAttribute('style'),
       });
     }
-
+    /** @override */
+    propertyIsInherited(property) {
+      return super.propertyIsInherited(property) || ['attributes', 'children', 'style'].indexOf(property) >= 0;
+    }
     setAttribute(key, value) {
       this.setAttributeNS(null, key, value);
     }
-
     getAttribute(key) {
       return this.getAttributeNS(null, key);
     }
-
     removeAttribute(key) {
       this.removeAttributeNS(null, key);
     }
-
     setAttributeNS(ns, name, value) {
       let attr = findWhere(this.attributes, createAttributeFilter(ns, name)),
         oldValue = attr && attr.value;
@@ -177,25 +190,20 @@ function undom() {
       attr.value = String(value);
       mutation(this, 'attributes', {attributeName: name, attributeNamespace: ns, oldValue});
     }
-
     getAttributeNS(ns, name) {
       let attr = findWhere(this.attributes, createAttributeFilter(ns, name));
       return attr && attr.value;
     }
-
     removeAttributeNS(ns, name) {
       splice(this.attributes, createAttributeFilter(ns, name));
       mutation(this, 'attributes', {attributeName: name, attributeNamespace: ns, oldValue: this.getAttributeNS(ns, name)});
     }
-
     addEventListener(type, handler) {
       (this.__handlers[toLower(type)] || (this.__handlers[toLower(type)] = [])).push(handler);
     }
-
     removeEventListener(type, handler) {
       splice(this.__handlers[toLower(type)], handler, 0, true);
     }
-
     dispatchEvent(event) {
       let t = event.currentTarget = this,
         c = event.cancelable,
@@ -214,45 +222,82 @@ function undom() {
     }
   }
 
-
   class SVGElement extends Element {}
 
+  const PREACT_PROPS = {
+    "_dirty": "__d",
+    "_disable": "__x",
+    "_listeners": "__l",
+    "_renderCallbacks": "__h",
+    "__key": "__k",
+    "__ref": "__r",
+    "normalizedNodeName": "__n",
+    "nextBase": "__b",
+    "prevContext": "__c",
+    "prevProps": "__p",
+    "prevState": "__s",
+    "_parentComponent": "__u",
+    "_componentConstructor": "_componentConstructor",
+    "__html": "__html",
+    "_component": "_component",
+    "__preactattr_": "__preactattr_"
+  };
 
-  class HTMLInputElement extends Element {
-    constructor(nodeType, nodeName) {
-      super(nodeType || 1, nodeName);
-      this.value_ = null;
-      Object.defineProperty(this, 'value', {
-        set: (val) => this.setValue(val),
-        get: this.getValue.bind(this),
-      });
+  /**
+   * @param {!Object} target
+   * @param {*} value
+   * @returns {boolean}
+   */
+  function isDOMProperty(target, value) {
+    if (typeof value != 'string') { // Ignore symbols.
+      return false;
     }
-
-    setValue(v) {
-      if (this.value_ === v) {
-        return;
-      }
-      const oldValue = this.value_;
-      this.value_ = v;
-      // Only update attribute on first render.
-      if (!this.getAttribute('value')) {
-        this.setAttribute('value', v);
-      }
-      mutation(this, 'properties', {propertyName: 'value', oldValue, newValue: v});
+    if (value.startsWith('_') || value.endsWith('_')) { // Ignore private props.
+      return false;
     }
-
-    getValue() {
-      return this.value_;
+    if (PREACT_PROPS[value]) { // TODO(willchou): Replace this with something better.
+      return false;
     }
+    if (!target.propertyIsEnumerable(value)) {
+      return false;
+    }
+    if (target.propertyIsInherited(value)) { // Skip Node.nodeType etc.
+      return false;
+    }
+    return true;
   }
 
+  /**
+   * Handler object that defines traps for proxying Element.
+   * Used to observe property changes and trigger mutations from them.
+   */
+  const ElementProxyHandler = {
+    set(target, property, value, receiver) {
+      const oldValue = target[property];
+      if (oldValue === value) {
+        return true;
+      }
+      target[property] = value;
+      if (isDOMProperty(target, property)) {
+        // Update attribute on first render (mimic DOM behavior of props vs. attrs).
+        if (!target.getAttribute(property)) {
+          target.setAttribute(property, value);
+        }
+        mutation(target, 'properties', {propertyName: property, oldValue, newValue: value});
+      }
+      return true;
+    },
+    has(target, property) {
+      // Necessary since Preact checks `in` before setting properties on elements.
+      return isDOMProperty(target, property);
+    }
+  };
 
   class Document extends Element {
     constructor() {
       super(9, '#document'); // DOCUMENT_NODE
     }
   }
-
 
   class Event {
     constructor(type, opts) {
@@ -271,8 +316,6 @@ function undom() {
     }
   }
 
-  // TOOD(willchou): Property updates are not supported by official MutationObserver.
-  // Extend worker MutationObserver polyfill to support properties?
   function mutation(target, type, record) {
     record.target = target;
     record.type = type;
@@ -327,17 +370,13 @@ function undom() {
     }
   }
 
-
   function createElement(type) {
-    // TODO(willchou): Needs a lot more to support a robust
-    // set of properties from Element subclasses.
     const t = String(type).toUpperCase();
-    switch (t) {
-      case 'INPUT': return new HTMLInputElement(null, t);
-      default: return new Element(null, t);
-    }
+    const element = new Element(null, t);
+    // Use proxy so we can observe and forward property changes e.g. HTMLInputElement.value.
+    const proxy = new Proxy(element, ElementProxyHandler);
+    return proxy;
   }
-
 
   function createElementNS(ns, type) {
     let element = createElement(type);
@@ -345,11 +384,9 @@ function undom() {
     return element;
   }
 
-
   function createTextNode(text) {
     return new Text(text);
   }
-
 
   function createDocument() {
     let document = new Document();
@@ -358,7 +395,6 @@ function undom() {
     document.appendChild(document.body = createElement('body'));
     return document;
   }
-
 
   return createDocument();
 }
