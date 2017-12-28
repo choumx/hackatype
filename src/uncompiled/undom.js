@@ -38,7 +38,6 @@ function findWhere(arr, fn, returnIndex, byValueOnly) {
   return returnIndex ? i : arr[i];
 }
 
-
 /*
  * undom.js
  */
@@ -135,7 +134,7 @@ function undom() {
     set textContent(value) {
       let oldValue = this.data;
       this.data = value;
-      mutation(this, 'characterData', {oldValue});
+      mutation(this, 'characterData', {value, oldValue});
     }
     get nodeValue() {
       return this.data;
@@ -188,7 +187,7 @@ function undom() {
         this.attributes.push(attr = {ns, name});
       }
       attr.value = String(value);
-      mutation(this, 'attributes', {attributeName: name, attributeNamespace: ns, oldValue});
+      mutation(this, 'attributes', {attributeName: name, attributeNamespace: ns, value: attr.value, oldValue});
     }
     getAttributeNS(ns, name) {
       let attr = findWhere(this.attributes, createAttributeFilter(ns, name));
@@ -283,7 +282,7 @@ function undom() {
         if (!target.getAttribute(property)) {
           target.setAttribute(property, value);
         }
-        mutation(target, 'properties', {propertyName: property, oldValue, newValue: value});
+        mutation(target, 'properties', {propertyName: property, value, oldValue});
       }
       return true;
     },
@@ -317,7 +316,7 @@ function undom() {
   }
 
   function mutation(target, type, record) {
-    record.target = target;
+    record.target = target.__id || target; // Use __id if available.
     record.type = type;
 
     for (let i = observers.length; i--; ) {

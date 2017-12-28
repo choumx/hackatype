@@ -12,14 +12,17 @@ export default ({worker}) => {
   const NODES = new Map();
 
   /** Returns the real DOM Element corresponding to a serialized Element object. */
-  function getNode(node) {
-    if (!node) {
+  function getNode(nodeOrId) {
+    if (!nodeOrId) {
       return null;
     }
-    if (node.nodeName === 'BODY') {
+    if (typeof nodeOrId == 'string') {
+      return NODES.get(nodeOrId);
+    }
+    if (nodeOrId.nodeName === 'BODY') {
       return document.body;
     }
-    return NODES.get(node.__id);
+    return NODES.get(nodeOrId.__id);
   }
 
   EVENTS_TO_PROXY.forEach((e) => {
@@ -151,25 +154,17 @@ export default ({worker}) => {
         }
       }
     },
-    attributes({target, attributeName}) {
-      let val;
-      for (let i = target.attributes.length; i--; ) {
-        let p = target.attributes[i];
-        if (p.name === attributeName) {
-          val = p.value;
-          break;
-        }
-      }
-      getNode(target).setAttribute(attributeName, val);
+    attributes({target, attributeName, value, oldValue}) {
+      getNode(target).setAttribute(attributeName, value);
     },
-    characterData({target, oldValue}) {
-      getNode(target).nodeValue = target.data;
+    characterData({target, value, oldValue}) {
+      getNode(target).nodeValue = value;
     },
     // Non-standard MutationRecord for property changes.
-    properties({target, propertyName, oldValue, newValue}) {
+    properties({target, propertyName, value, oldValue}) {
       const node = getNode(target);
       console.assert(node);
-      node[propertyName] = newValue;
+      node[propertyName] = value;
     },
   };
 
@@ -209,7 +204,7 @@ export default ({worker}) => {
       }
       const m = MUTATION_QUEUE[i];
 
-      const latency = m.received - timeOfLastUserGesture;
+      const latency = m.timestamp - timeOfLastUserGesture;
       if (latency > GESTURE_TO_MUTATION_THRESHOLD) {
         console.warn(`Mutation latency exceeded (${latency}). Queued until next gesture: `, m);
         continue;
@@ -244,19 +239,20 @@ export default ({worker}) => {
 
     // Merge/overwrite characterData & attribute mutations instead of queueing
     // to avoid extra DOM mutations.
-    if (mutation.type === 'characterData' || mutation.type === 'attributes') {
-      for (let i = MUTATION_QUEUE.length; i--; ) {
-        let m = MUTATION_QUEUE[i];
-        if (m.type == mutation.type && m.target.__id == mutation.target.__id) {
-          if (m.type === 'attributes') {
-            MUTATION_QUEUE.splice(i + 1, 0, mutation);
-          } else {
-            MUTATION_QUEUE[i] = mutation;
-          }
-          merged = true;
-        }
-      }
-    }
+    // TODO(willchou): Restore this when (target == __id) is supported.
+    // if (mutation.type === 'characterData' || mutation.type === 'attributes') {
+    //   for (let i = MUTATION_QUEUE.length; i--; ) {
+    //     let m = MUTATION_QUEUE[i];
+    //     if (m.type == mutation.type && m.target.__id == mutation.target.__id) {
+    //       if (m.type === 'attributes') {
+    //         MUTATION_QUEUE.splice(i + 1, 0, mutation);
+    //       } else {
+    //         MUTATION_QUEUE[i] = mutation;
+    //       }
+    //       merged = true;
+    //     }
+    //   }
+    // }
 
     if (!merged) {
       MUTATION_QUEUE.push(mutation);
@@ -314,7 +310,7 @@ export default ({worker}) => {
       const now = Date.now();
 
       data.mutations.forEach(mutation => {
-        mutation.received = now;
+        mutation.timestamp = now;
 
         // TODO(willchou): Improve heuristic for identifying initial render.
         if (initialRender && aotRoot) {
