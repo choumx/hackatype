@@ -59,7 +59,7 @@ export default ({worker}) => {
     }
 
     // For change events, update worker with new `value` prop.
-    // TODO(willchou): Generify this special-case.
+    // TODO(willchou): Complete support for user input (e.g. input events, other props).
     if (e.type == 'change' && 'value' in e.target) {
       event.__value = e.target.value;
     }

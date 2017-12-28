@@ -68,6 +68,10 @@ function undom() {
       this.nodeName = nodeName;
       this.childNodes = [];
     }
+    /** @returns True if this property is defined by this class or any of its superclasses. */
+    definedBy(property) {
+      return ['nodeType', 'nodeName', 'childNodes', 'parentNode'].indexOf(property) >= 0;
+    }
     appendChild(child) {
       child.remove();
       child.parentNode = this;
@@ -118,6 +122,10 @@ function undom() {
       super(3, '#text'); // TEXT_NODE
       this.data = text;
     }
+    /** @override */
+    definedBy(property) {
+      return super.definedBy(property) || ['data'].indexOf(property) >= 0;
+    }
     get textContent() {
       return this.data;
     }
@@ -138,14 +146,17 @@ function undom() {
   class Element extends Node {
     constructor(nodeType, nodeName) {
       super(nodeType || 1, nodeName); // ELEMENT_NODE
+
       this.attributes = [];
       this.children = [];
-      this.__handlers = {};
       this.style = {};
+
+      this.__handlers = {};
+
       Object.defineProperty(this, 'className', {
         set: (val) => {
-      this.setAttribute('class', val);
-      },
+          this.setAttribute('class', val);
+        },
         get: () => this.getAttribute('style'),
       });
       Object.defineProperty(this.style, 'cssText', {
@@ -155,19 +166,19 @@ function undom() {
         get: () => this.getAttribute('style'),
       });
     }
-
+    /** @override */
+    definedBy(property) {
+      return super.definedBy(property) || ['attributes', 'children', 'style'].indexOf(property) >= 0;
+    }
     setAttribute(key, value) {
       this.setAttributeNS(null, key, value);
     }
-
     getAttribute(key) {
       return this.getAttributeNS(null, key);
     }
-
     removeAttribute(key) {
       this.removeAttributeNS(null, key);
     }
-
     setAttributeNS(ns, name, value) {
       let attr = findWhere(this.attributes, createAttributeFilter(ns, name)),
         oldValue = attr && attr.value;
@@ -177,25 +188,20 @@ function undom() {
       attr.value = String(value);
       mutation(this, 'attributes', {attributeName: name, attributeNamespace: ns, oldValue});
     }
-
     getAttributeNS(ns, name) {
       let attr = findWhere(this.attributes, createAttributeFilter(ns, name));
       return attr && attr.value;
     }
-
     removeAttributeNS(ns, name) {
       splice(this.attributes, createAttributeFilter(ns, name));
       mutation(this, 'attributes', {attributeName: name, attributeNamespace: ns, oldValue: this.getAttributeNS(ns, name)});
     }
-
     addEventListener(type, handler) {
       (this.__handlers[toLower(type)] || (this.__handlers[toLower(type)] = [])).push(handler);
     }
-
     removeEventListener(type, handler) {
       splice(this.__handlers[toLower(type)], handler, 0, true);
     }
-
     dispatchEvent(event) {
       let t = event.currentTarget = this,
         c = event.cancelable,
@@ -218,33 +224,59 @@ function undom() {
   class SVGElement extends Element {}
 
 
-  class HTMLInputElement extends Element {
-    constructor(nodeType, nodeName) {
-      super(nodeType || 1, nodeName);
-      this.value_ = null;
-      Object.defineProperty(this, 'value', {
-        set: (val) => this.setValue(val),
-        get: this.getValue.bind(this),
-      });
-    }
-
-    setValue(v) {
-      if (this.value_ === v) {
-        return;
-      }
-      const oldValue = this.value_;
-      this.value_ = v;
-      // Only update attribute on first render.
-      if (!this.getAttribute('value')) {
-        this.setAttribute('value', v);
-      }
-      mutation(this, 'properties', {propertyName: 'value', oldValue, newValue: v});
-    }
-
-    getValue() {
-      return this.value_;
-    }
+  const PREACT_PROPS = {
+    "_dirty": "__d",
+    "_disable": "__x",
+    "_listeners": "__l",
+    "_renderCallbacks": "__h",
+    "__key": "__k",
+    "__ref": "__r",
+    "normalizedNodeName": "__n",
+    "nextBase": "__b",
+    "prevContext": "__c",
+    "prevProps": "__p",
+    "prevState": "__s",
+    "_parentComponent": "__u",
+    "_componentConstructor": "_componentConstructor",
+    "__html": "__html",
+    "_component": "_component",
+    "__preactattr_": "__preactattr_"
   }
+
+  /**
+   * Handler object that defines traps for proxying Element.
+   * Used to observe property changes and trigger mutations from them.
+   * TODO(willchou): Is this necessary? Always update properties on DOM renderer instead?
+   */
+  const ElementProxyHandler = {
+    set(target, property, value, receiver) {
+      const oldValue = target[property];
+      if (oldValue === value) {
+        return true;
+      }
+      target[property] = value;
+
+      // Skip private or inherited props e.g. Node.nodeType.
+      const isPrivateProperty = property[0] == '_';
+      const isPreactProperty = PREACT_PROPS[property] || typeof property == 'symbol';
+      if (!isPrivateProperty
+          && !isPreactProperty
+          && target.propertyIsEnumerable(property)
+          && !target.definedBy(property)) {
+        // Update attribute on first render (mimic DOM behavior of props vs. attrs).
+        if (!target.getAttribute(property)) {
+          target.setAttribute(property, value);
+        }
+        mutation(target, 'properties', {propertyName: property, oldValue, newValue: value});
+      }
+      return true;
+    },
+    has(target, prop) {
+      // Fake existence of all properties in prototype chain.
+      // Necessary since Preact checks `in` before setting properties on elements.
+      return true;
+    }
+  };
 
 
   class Document extends Element {
@@ -271,8 +303,7 @@ function undom() {
     }
   }
 
-  // TOOD(willchou): Property updates are not supported by official MutationObserver.
-  // Extend worker MutationObserver polyfill to support properties?
+
   function mutation(target, type, record) {
     record.target = target;
     record.type = type;
@@ -329,13 +360,11 @@ function undom() {
 
 
   function createElement(type) {
-    // TODO(willchou): Needs a lot more to support a robust
-    // set of properties from Element subclasses.
     const t = String(type).toUpperCase();
-    switch (t) {
-      case 'INPUT': return new HTMLInputElement(null, t);
-      default: return new Element(null, t);
-    }
+    const element = new Element(null, t);
+    // Use proxy so we can observe and forward property changes e.g. HTMLInputElement.value.
+    const proxy = new Proxy(element, ElementProxyHandler);
+    return proxy;
   }
 
 
