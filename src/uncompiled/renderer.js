@@ -1,3 +1,6 @@
+// Toggle this on/off.
+const GESTURE_CONSTRAINT = false;
+
 /**
  * Sets up a bidirectional DOM Mutation+Event proxy to a Workerized app.
  * @param {Worker} opts.worker The WebWorker instance to proxy to.
@@ -29,7 +32,8 @@ export default ({worker}) => {
     addEventListener(e, proxyEvent, {capture: true, passive: true});
   });
 
-  const GESTURE_TO_MUTATION_THRESHOLD = 1000; // Allow mutations up to 1s after user gesture.
+  // Allow mutations up to 1s after user gesture.
+  const GESTURE_TO_MUTATION_THRESHOLD = GESTURE_CONSTRAINT ? 1000 : Infinity;
   let timeOfLastUserGesture = Date.now();
 
   let touchStart;
