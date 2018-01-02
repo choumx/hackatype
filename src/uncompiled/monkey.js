@@ -39,6 +39,7 @@ let COUNTER = 0;
 
 const TO_SANITIZE = ['addedNodes', 'removedNodes', 'nextSibling', 'previousSibling', 'target'];
 
+// TODO(willchou): Replace this with something more generic.
 const PROP_BLACKLIST = ['children', 'parentNode', '__handlers', '_component', '_componentConstructor'];
 
 const NODES = new Map();
@@ -117,6 +118,7 @@ observer.observe(document, {subtree: true});
 
 function send(message) {
   const json = JSON.parse(JSON.stringify(message));
+  json.timestamp = self.performance.now();
   postMessage(json);
 }
 

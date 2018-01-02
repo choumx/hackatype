@@ -3,7 +3,9 @@
  */
 
 function assign(obj, props) {
-  for (let i in props) obj[i] = props[i]; // eslint-disable-line guard-for-in
+  for (let i in props) { // eslint-disable-line guard-for-in
+    obj[i] = props[i];
+  }
 }
 
 function toLower(str) {
@@ -36,7 +38,6 @@ function findWhere(arr, fn, returnIndex, byValueOnly) {
   return returnIndex ? i : arr[i];
 }
 
-
 /*
  * undom.js
  */
@@ -54,7 +55,6 @@ const NODE_TYPES = {
 };
 */
 
-
 /** Create a minimally viable DOM Document
  *  @returns {Document} document
  */
@@ -68,8 +68,11 @@ function undom() {
       this.nodeName = nodeName;
       this.childNodes = [];
     }
-    /** @returns True if this property is defined by this class or any of its superclasses. */
-    definedBy(property) {
+    /**
+     * True if this property is defined by this class or any of its superclasses.
+     * @returns {boolean}
+     */
+    propertyIsInherited(property) {
       return ['nodeType', 'nodeName', 'childNodes', 'parentNode'].indexOf(property) >= 0;
     }
     appendChild(child) {
@@ -116,15 +119,14 @@ function undom() {
     }
   }
 
-
   class Text extends Node {
     constructor(text) {
       super(3, '#text'); // TEXT_NODE
       this.data = text;
     }
     /** @override */
-    definedBy(property) {
-      return super.definedBy(property) || ['data'].indexOf(property) >= 0;
+    propertyIsInherited(property) {
+      return super.propertyIsInherited(property) || ['data'].indexOf(property) >= 0;
     }
     get textContent() {
       return this.data;
@@ -132,7 +134,7 @@ function undom() {
     set textContent(value) {
       let oldValue = this.data;
       this.data = value;
-      mutation(this, 'characterData', {oldValue});
+      mutation(this, 'characterData', {value, oldValue});
     }
     get nodeValue() {
       return this.data;
@@ -141,7 +143,6 @@ function undom() {
       this.textContent = value;
     }
   }
-
 
   class Element extends Node {
     constructor(nodeType, nodeName) {
@@ -167,8 +168,8 @@ function undom() {
       });
     }
     /** @override */
-    definedBy(property) {
-      return super.definedBy(property) || ['attributes', 'children', 'style'].indexOf(property) >= 0;
+    propertyIsInherited(property) {
+      return super.propertyIsInherited(property) || ['attributes', 'children', 'style'].indexOf(property) >= 0;
     }
     setAttribute(key, value) {
       this.setAttributeNS(null, key, value);
@@ -186,7 +187,7 @@ function undom() {
         this.attributes.push(attr = {ns, name});
       }
       attr.value = String(value);
-      mutation(this, 'attributes', {attributeName: name, attributeNamespace: ns, oldValue});
+      mutation(this, 'attributes', {attributeName: name, attributeNamespace: ns, value: attr.value, oldValue});
     }
     getAttributeNS(ns, name) {
       let attr = findWhere(this.attributes, createAttributeFilter(ns, name));
@@ -220,9 +221,7 @@ function undom() {
     }
   }
 
-
   class SVGElement extends Element {}
-
 
   const PREACT_PROPS = {
     "_dirty": "__d",
@@ -241,12 +240,35 @@ function undom() {
     "__html": "__html",
     "_component": "_component",
     "__preactattr_": "__preactattr_"
+  };
+
+  /**
+   * @param {!Object} target
+   * @param {*} value
+   * @returns {boolean}
+   */
+  function isDOMProperty(target, value) {
+    if (typeof value != 'string') { // Ignore symbols.
+      return false;
+    }
+    if (value.startsWith('_') || value.endsWith('_')) { // Ignore private props.
+      return false;
+    }
+    if (PREACT_PROPS[value]) { // TODO(willchou): Replace this with something better.
+      return false;
+    }
+    if (!target.propertyIsEnumerable(value)) {
+      return false;
+    }
+    if (target.propertyIsInherited(value)) { // Skip Node.nodeType etc.
+      return false;
+    }
+    return true;
   }
 
   /**
    * Handler object that defines traps for proxying Element.
    * Used to observe property changes and trigger mutations from them.
-   * TODO(willchou): Is this necessary? Always update properties on DOM renderer instead?
    */
   const ElementProxyHandler = {
     set(target, property, value, receiver) {
@@ -255,36 +277,26 @@ function undom() {
         return true;
       }
       target[property] = value;
-
-      // Skip private or inherited props e.g. Node.nodeType.
-      const isPrivateProperty = property[0] == '_';
-      const isPreactProperty = PREACT_PROPS[property] || typeof property == 'symbol';
-      if (!isPrivateProperty
-          && !isPreactProperty
-          && target.propertyIsEnumerable(property)
-          && !target.definedBy(property)) {
+      if (isDOMProperty(target, property)) {
         // Update attribute on first render (mimic DOM behavior of props vs. attrs).
         if (!target.getAttribute(property)) {
           target.setAttribute(property, value);
         }
-        mutation(target, 'properties', {propertyName: property, oldValue, newValue: value});
+        mutation(target, 'properties', {propertyName: property, value, oldValue});
       }
       return true;
     },
-    has(target, prop) {
-      // Fake existence of all properties in prototype chain.
+    has(target, property) {
       // Necessary since Preact checks `in` before setting properties on elements.
-      return true;
+      return isDOMProperty(target, property);
     }
   };
-
 
   class Document extends Element {
     constructor() {
       super(9, '#document'); // DOCUMENT_NODE
     }
   }
-
 
   class Event {
     constructor(type, opts) {
@@ -303,9 +315,8 @@ function undom() {
     }
   }
 
-
   function mutation(target, type, record) {
-    record.target = target;
+    record.target = target.__id || target; // Use __id if available.
     record.type = type;
 
     for (let i = observers.length; i--; ) {
@@ -358,7 +369,6 @@ function undom() {
     }
   }
 
-
   function createElement(type) {
     const t = String(type).toUpperCase();
     const element = new Element(null, t);
@@ -367,18 +377,15 @@ function undom() {
     return proxy;
   }
 
-
   function createElementNS(ns, type) {
     let element = createElement(type);
     element.namespace = ns;
     return element;
   }
 
-
   function createTextNode(text) {
     return new Text(text);
   }
-
 
   function createDocument() {
     let document = new Document();
@@ -387,7 +394,6 @@ function undom() {
     document.appendChild(document.body = createElement('body'));
     return document;
   }
-
 
   return createDocument();
 }
