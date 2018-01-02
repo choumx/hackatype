@@ -38,6 +38,8 @@ function findWhere(arr, fn, returnIndex, byValueOnly) {
   return returnIndex ? i : arr[i];
 }
 
+let serializeDom = null;
+
 /*
  * undom.js
  */
@@ -55,6 +57,8 @@ const NODE_TYPES = {
 };
 */
 
+const BUNDLE_MUTATIONS_IN_DOM = true;
+
 /** Create a minimally viable DOM Document
  *  @returns {Document} document
  */
@@ -62,11 +66,15 @@ function undom() {
   let observers = [],
     pendingMutations = false;
 
+  /**
+   * Node.
+   */
   class Node {
     constructor(nodeType, nodeName) {
       this.nodeType = nodeType;
       this.nodeName = nodeName;
       this.childNodes = [];
+      this.dirty = false;
     }
     /**
      * True if this property is defined by this class or any of its superclasses.
@@ -115,7 +123,9 @@ function undom() {
       mutation(this, 'childList', {removedNodes: [child], previousSibling: this.childNodes[i - 1], nextSibling: this.childNodes[i]});
     }
     remove() {
-      if (this.parentNode) this.parentNode.removeChild(this);
+      if (this.parentNode) {
+        this.parentNode.removeChild(this);
+      }
     }
   }
 
@@ -223,6 +233,12 @@ function undom() {
 
   class SVGElement extends Element {}
 
+  class Document extends Element {
+    constructor() {
+      super(9, '#document'); // DOCUMENT_NODE
+    }
+  }
+
   const PREACT_PROPS = {
     "_dirty": "__d",
     "_disable": "__x",
@@ -292,12 +308,6 @@ function undom() {
     }
   };
 
-  class Document extends Element {
-    constructor() {
-      super(9, '#document'); // DOCUMENT_NODE
-    }
-  }
-
   class Event {
     constructor(type, opts) {
       this.type = type;
@@ -318,6 +328,14 @@ function undom() {
   function mutation(target, type, record) {
     record.target = target.__id || target; // Use __id if available.
     record.type = type;
+
+    if (BUNDLE_MUTATIONS_IN_DOM) {
+      target.dirty = true;
+      if (serializeDom)
+        serializeDom();
+      postMessage({type: 'mutation-ping'});
+      return;
+    }
 
     for (let i = observers.length; i--; ) {
       let ob = observers[i];
@@ -372,9 +390,13 @@ function undom() {
   function createElement(type) {
     const t = String(type).toUpperCase();
     const element = new Element(null, t);
-    // Use proxy so we can observe and forward property changes e.g. HTMLInputElement.value.
-    const proxy = new Proxy(element, ElementProxyHandler);
-    return proxy;
+    if (BUNDLE_MUTATIONS_IN_DOM) {
+      return element;
+    } else {
+      // Use proxy so we can observe and forward property changes e.g. HTMLInputElement.value.
+      const proxy = new Proxy(element, ElementProxyHandler);
+      return proxy;
+    }
   }
 
   function createElementNS(ns, type) {

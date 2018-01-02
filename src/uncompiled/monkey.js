@@ -104,17 +104,45 @@ function sanitize(obj) {
   return out;
 }
 
-const observer = new MutationObserver((mutations) => {
-  for (let i = mutations.length; i--; ) {
-    let mutation = mutations[i];
-    for (let j = TO_SANITIZE.length; j--; ) {
-      let prop = TO_SANITIZE[j];
-      mutation[prop] = sanitize(mutation[prop]);
+if (!BUNDLE_MUTATIONS_IN_DOM) {
+  const observer = new MutationObserver((mutations) => {
+    for (let i = mutations.length; i--; ) {
+      let mutation = mutations[i];
+      for (let j = TO_SANITIZE.length; j--; ) {
+        let prop = TO_SANITIZE[j];
+        mutation[prop] = sanitize(mutation[prop]);
+      }
+    }
+    send({type: 'MutationRecord', mutations});
+  });
+  observer.observe(document, {subtree: true});
+}
+
+serializeDom = function() {
+  if (!sharedArray) {
+    return;
+  }
+  debugger;
+  const serialized = sanitize(document.body);
+  const string = JSON.stringify(serialized);
+  let l = string.length;
+  for (let i = 0; i < l; i++) {
+    Atomics.store(sharedArray, i, string.charCodeAt(i));
+  }
+  for (let i = string.length; i < sharedArray.length; i++) {
+    if (Atomics.load(sharedArray, i) > 0) {
+      Atomics.store(sharedArray, i, 0);
+    } else {
+      break;
     }
   }
-  send({type: 'MutationRecord', mutations});
-});
-observer.observe(document, {subtree: true});
+}
+
+function sendDom() {
+  serializeDom();
+  console.log('Sending DOM:', document.body);
+  postMessage({type: 'dom'});
+};
 
 function send(message) {
   const json = JSON.parse(JSON.stringify(message));
@@ -122,18 +150,17 @@ function send(message) {
   postMessage(json);
 }
 
-// let array; // Testing SAB.
+let sharedArray;
 
 addEventListener('message', ({data}) => {
   switch (data.type) {
     case 'init':
       url = data.url;
 
-      // Testing SAB.
-      // array = new Int32Array(data.buffer);
-      // console.log('Worker received buffer with: ' + array[0]);
-      // console.log('Changing value to 777...');
-      // Atomics.store(array, 0, 777);
+      setTimeout(sendDom, 500);
+
+      sharedArray = new Uint16Array(data.buffer);
+      console.log('Worker received buffer with length: ' + sharedArray.length);
       break;
     case 'event':
       handleEvent(data.event);

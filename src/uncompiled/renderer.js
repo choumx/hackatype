@@ -1,5 +1,6 @@
-// Toggle this on/off.
+// Flags.
 const GESTURE_CONSTRAINT = false;
+const BUNDLE_MUTATIONS_IN_DOM = true;
 
 /**
  * Sets up a bidirectional DOM Mutation+Event proxy to a Workerized app.
@@ -303,14 +304,55 @@ export default ({worker}) => {
   const aotRoot = document.querySelector('[amp-aot]');
   const metrics = document.querySelector('#metrics');
 
-  // Testing SAB.
-  // const buffer = new SharedArrayBuffer(Int32Array.BYTES_PER_ELEMENT * 1);
-  // const array = new Int32Array(buffer);
-  // Atomics.store(array, 0, 123);
+  function repaintDirty(skeleton) {
+    if (skeleton.dirty && skeleton.nodeType == Node.TEXT_NODE) {
+      // Text only.
+      getNode(skeleton).nodeValue = skeleton.data;
+    }
+    skeleton.childNodes.forEach(child => {
+      repaintDirty(child);
+    });
+  }
+
+  function deserializeDom() {
+    let domString = '';
+    for (let i = 0, l = sharedArray.length; i < l; i++) {
+      const b = Atomics.load(sharedArray, i);
+      if (b > 0) {
+        const c = String.fromCharCode(b);
+        domString += c;
+      } else {
+        break;
+      }
+    }
+    return JSON.parse(domString);
+  }
+
+  const buffer = new SharedArrayBuffer(Uint16Array.BYTES_PER_ELEMENT * 10000);
+  const sharedArray = new Uint16Array(buffer);
+  let domSkeleton = null;
 
   worker.onmessage = ({data}) => {
-    const latency = window.performance.now() - data.timestamp;
-    metrics.textContent = latency;
+    if (metrics) {
+      const latency = window.performance.now() - data.timestamp;
+      metrics.textContent = latency;
+    }
+
+    if (data.type == 'dom') {
+      console.assert(BUNDLE_MUTATIONS_IN_DOM);
+      domSkeleton = deserializeDom();
+      console.assert(domSkeleton.nodeName == 'BODY');
+      const node = createNode(domSkeleton);
+      document.body.appendChild(node);
+      return;
+    }
+
+    if (data.type == 'mutation-ping') {
+      if (domSkeleton) {
+        domSkeleton = deserializeDom();
+        repaintDirty(domSkeleton);
+      }
+    }
 
     console.info(`Received "${data.type}" from worker:`, data);
 
@@ -341,13 +383,12 @@ export default ({worker}) => {
         Monitoring.renderRate.ping(); // Refresh perf monitor.
       }
     }
-    // console.log('Array now contains: ' + array[0]); // Testing SAB.
   };
 
 
   postToWorker({
     type: 'init',
     location: location.href,
-    // buffer, // Testing SAB.
+    buffer,
   });
 };
