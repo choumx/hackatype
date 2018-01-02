@@ -23,7 +23,7 @@ export default ({worker}) => {
       return NODES.get(nodeOrId);
     }
     if (nodeOrId.nodeName === 'BODY') {
-      return document.body;
+      return document.querySelector('#root'); // TODO(willchou)
     }
     return NODES.get(nodeOrId.__id);
   }
@@ -301,6 +301,7 @@ export default ({worker}) => {
 
   let initialRender = true;
   const aotRoot = document.querySelector('[amp-aot]');
+  const metrics = document.querySelector('#metrics');
 
   // Testing SAB.
   // const buffer = new SharedArrayBuffer(Int32Array.BYTES_PER_ELEMENT * 1);
@@ -308,6 +309,9 @@ export default ({worker}) => {
   // Atomics.store(array, 0, 123);
 
   worker.onmessage = ({data}) => {
+    const latency = window.performance.now() - data.timestamp;
+    metrics.textContent = latency;
+
     console.info(`Received "${data.type}" from worker:`, data);
 
     if (data.type === 'MutationRecord') {
@@ -332,6 +336,10 @@ export default ({worker}) => {
       });
 
       initialRender = false;
+
+      if ('Monitoring' in window) {
+        Monitoring.renderRate.ping(); // Refresh perf monitor.
+      }
     }
     // console.log('Array now contains: ' + array[0]); // Testing SAB.
   };

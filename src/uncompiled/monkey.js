@@ -118,6 +118,7 @@ observer.observe(document, {subtree: true});
 
 function send(message) {
   const json = JSON.parse(JSON.stringify(message));
+  json.timestamp = self.performance.now();
   postMessage(json);
 }
 

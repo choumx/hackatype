@@ -3,9 +3,17 @@
   <head>
     <meta charset="utf-8" />
     <title>AJMSP</title>
-    <!-- <style id="default">
-      body, input, button { font-size: 2em; }
-    </style> -->
+    <style id="default">
+      /* body, input, button { font-size: 2em; } */
+      #metrics {
+        width: 50;
+        height: 20;
+        position: fixed;
+        background-color: black;
+        color: red;
+        font-size: 2em;
+      }
+    </style>
     <!-- Styles for dbmon app. -->
     <style id="dbmon">
       body {color:#333;font-family:"Helvetica Neue",Helvetica,Arial,sans-serif;font-size:14px;line-height:1.42857143;margin:0;}
@@ -39,8 +47,14 @@
   <body>
     <script async type=module src=entry.js></script>
 
-    <!-- AOT render that will be hydrated during init. -->
-    <!-- <TodoApp /> -->
-    <!-- <div amp-aot><h3>TODO</h3><ul></ul><input value="<Add TODO>" /><button>Add #1</button></div> -->
+    <!-- <script async src="http://mathieuancelin.github.io/js-repaint-perfs/lib/memory-stats.js"></script>
+    <script async src="http://mathieuancelin.github.io/js-repaint-perfs/lib/monitor.js"></script> -->
+
+    <div width=100 height=50 id="metrics"></div>
+
+    <div id="root">
+      <!-- AOT render that will be hydrated during init. -->
+      <!-- <div amp-aot><h3>TODO</h3><ul></ul><input value="<Add TODO>" /><button>Add #1</button></div> -->
+    </div>
   </body>
 </html>
