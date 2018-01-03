@@ -113,22 +113,22 @@ if (!BUNDLE_MUTATIONS_IN_DOM) {
         mutation[prop] = sanitize(mutation[prop]);
       }
     }
-    send({type: 'MutationRecord', mutations});
+    send({type: 'mutate', mutations});
   });
   observer.observe(document, {subtree: true});
 }
 
-serializeDom = function() {
+function serializeDom() {
   if (!sharedArray) {
     return;
   }
-  debugger;
   const serialized = sanitize(document.body);
   const string = JSON.stringify(serialized);
   let l = string.length;
   for (let i = 0; i < l; i++) {
     Atomics.store(sharedArray, i, string.charCodeAt(i));
   }
+  // Erase trailing bytes in case DOM has decreased in size.
   for (let i = string.length; i < sharedArray.length; i++) {
     if (Atomics.load(sharedArray, i) > 0) {
       Atomics.store(sharedArray, i, 0);
@@ -138,10 +138,10 @@ serializeDom = function() {
   }
 }
 
-function sendDom() {
+function onInitialRender() {
+  initialRenderComplete = true;
   serializeDom();
-  console.log('Sending DOM:', document.body);
-  postMessage({type: 'dom'});
+  postMessage({type: 'init-render'});
 };
 
 function send(message) {
@@ -156,11 +156,9 @@ addEventListener('message', ({data}) => {
   switch (data.type) {
     case 'init':
       url = data.url;
-
-      setTimeout(sendDom, 500);
-
       sharedArray = new Uint16Array(data.buffer);
-      console.log('Worker received buffer with length: ' + sharedArray.length);
+      // HACK(willchou): Should instead wait until X ms after last DOM mutation.
+      setTimeout(onInitialRender, 200);
       break;
     case 'event':
       handleEvent(data.event);

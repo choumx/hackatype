@@ -38,8 +38,6 @@ function findWhere(arr, fn, returnIndex, byValueOnly) {
   return returnIndex ? i : arr[i];
 }
 
-let serializeDom = null;
-
 /*
  * undom.js
  */
@@ -58,6 +56,8 @@ const NODE_TYPES = {
 */
 
 const BUNDLE_MUTATIONS_IN_DOM = true;
+
+let initialRenderComplete = false;
 
 /** Create a minimally viable DOM Document
  *  @returns {Document} document
@@ -330,10 +330,11 @@ function undom() {
     record.type = type;
 
     if (BUNDLE_MUTATIONS_IN_DOM) {
-      target.dirty = true;
-      if (serializeDom)
+      if (initialRenderComplete) {
+        target.dirty = true;
         serializeDom();
-      postMessage({type: 'mutation-ping'});
+        postMessage({type: 'dom-update'});
+      }
       return;
     }
 

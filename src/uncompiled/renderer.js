@@ -305,9 +305,12 @@ export default ({worker}) => {
   const metrics = document.querySelector('#metrics');
 
   function repaintDirty(skeleton) {
-    if (skeleton.dirty && skeleton.nodeType == Node.TEXT_NODE) {
-      // Text only.
-      getNode(skeleton).nodeValue = skeleton.data;
+    if (skeleton.dirty) {
+      // TODO(willchou): Support repainting non-text nodes.
+      if (skeleton.nodeType == Node.TEXT_NODE) {
+        getNode(skeleton).nodeValue = skeleton.data;
+      }
+      skeleton.dirty = false;
     }
     skeleton.childNodes.forEach(child => {
       repaintDirty(child);
@@ -330,6 +333,7 @@ export default ({worker}) => {
 
   const buffer = new SharedArrayBuffer(Uint16Array.BYTES_PER_ELEMENT * 10000);
   const sharedArray = new Uint16Array(buffer);
+
   let domSkeleton = null;
 
   worker.onmessage = ({data}) => {
@@ -338,51 +342,52 @@ export default ({worker}) => {
       metrics.textContent = latency;
     }
 
-    if (data.type == 'dom') {
-      console.assert(BUNDLE_MUTATIONS_IN_DOM);
-      domSkeleton = deserializeDom();
-      console.assert(domSkeleton.nodeName == 'BODY');
-      const node = createNode(domSkeleton);
-      document.body.appendChild(node);
-      return;
-    }
-
-    if (data.type == 'mutation-ping') {
-      if (domSkeleton) {
-        domSkeleton = deserializeDom();
-        repaintDirty(domSkeleton);
-      }
-    }
-
     console.info(`Received "${data.type}" from worker:`, data);
 
-    if (data.type === 'MutationRecord') {
-      const now = Date.now();
+    switch (data.type) {
+      case 'init-render':
+        console.assert(BUNDLE_MUTATIONS_IN_DOM);
+        domSkeleton = deserializeDom();
+        console.assert(domSkeleton.nodeName == 'BODY');
+        const node = createNode(domSkeleton);
+        document.body.appendChild(node);
+        break;
 
-      data.mutations.forEach(mutation => {
-        mutation.timestamp = now;
+      case 'dom-update':
+        console.assert(domSkeleton);
+        domSkeleton = deserializeDom();
+        repaintDirty(domSkeleton);
+        break;
 
-        // TODO(willchou): Improve heuristic for identifying initial render.
-        if (initialRender && aotRoot) {
-          // Check if mutation record looks like the root containing `amp-aot` attr.
-          // If so, set __id on all matching DOM elements.
-          console.info('Hydrating AOT root: ', aotRoot);
-          console.assert(mutation.type == 'childList' && mutation.addedNodes);
-          mutation.addedNodes.forEach(n => hydrate(aotRoot, n));
-          return;
-        } else if (initialRender) {
-          console.warn('No AOT root found!');
+      case 'mutate':
+        const now = Date.now();
+
+        data.mutations.forEach(mutation => {
+          mutation.timestamp = now;
+
+          // TODO(willchou): Improve heuristic for identifying initial render.
+          if (initialRender && aotRoot) {
+            // Check if mutation record looks like the root containing `amp-aot` attr.
+            // If so, set __id on all matching DOM elements.
+            console.info('Hydrating AOT root: ', aotRoot);
+            console.assert(mutation.type == 'childList' && mutation.addedNodes);
+            mutation.addedNodes.forEach(n => hydrate(aotRoot, n));
+            return;
+          } else if (initialRender) {
+            console.warn('No AOT root found!');
+          }
+
+          enqueueMutation(mutation);
+        });
+
+        initialRender = false;
+
+        if ('Monitoring' in window) {
+          Monitoring.renderRate.ping(); // Refresh perf monitor.
         }
-
-        enqueueMutation(mutation);
-      });
-
-      initialRender = false;
-
-      if ('Monitoring' in window) {
-        Monitoring.renderRate.ping(); // Refresh perf monitor.
-      }
+        break;
     }
+
   };
 
 
