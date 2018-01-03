@@ -104,7 +104,7 @@ function sanitize(obj) {
   return out;
 }
 
-if (!BUNDLE_MUTATIONS_IN_DOM) {
+if (!Flags.BUNDLE_MUTATIONS_IN_DOM) {
   const observer = new MutationObserver((mutations) => {
     for (let i = mutations.length; i--; ) {
       let mutation = mutations[i];
@@ -157,8 +157,10 @@ addEventListener('message', ({data}) => {
     case 'init':
       url = data.url;
       sharedArray = new Uint16Array(data.buffer);
-      // HACK(willchou): Should instead wait until X ms after last DOM mutation.
-      setTimeout(onInitialRender, 200);
+      if (Flags.BUNDLE_MUTATIONS_IN_DOM) {
+        // HACK(willchou): Should instead wait until X ms after last DOM mutation.
+        setTimeout(onInitialRender, 200);
+      }
       break;
     case 'event':
       handleEvent(data.event);

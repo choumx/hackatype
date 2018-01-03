@@ -7,6 +7,6 @@ Promise.all([
 ]).then(([undom, monkey, app]) => {
   const code = [undom, monkey, app].join('\n');
   const blob = new Blob([code]);
-  const worker = new Worker(URL.createObjectURL(blob));
+  const worker = new Worker(URL.createObjectURL(blob), {type: 'module'}); // `module` doesn't work in Chrome yet (crbug/680046).
   renderer({worker});
 });

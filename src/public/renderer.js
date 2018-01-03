@@ -1,6 +1,9 @@
-// Flags.
-const GESTURE_CONSTRAINT = false;
-const BUNDLE_MUTATIONS_IN_DOM = true;
+// Chrome doesn't support ES6 modules in workers yet, so we dupe the flags
+// on main page (renderer.js) and worker (undom.js).
+const Flags = {
+  GESTURE_CONSTRAINT: false,
+  BUNDLE_MUTATIONS_IN_DOM: true,
+};
 
 /**
  * Sets up a bidirectional DOM Mutation+Event proxy to a Workerized app.
@@ -34,7 +37,7 @@ export default ({worker}) => {
   });
 
   // Allow mutations up to 1s after user gesture.
-  const GESTURE_TO_MUTATION_THRESHOLD = GESTURE_CONSTRAINT ? 1000 : Infinity;
+  const GESTURE_TO_MUTATION_THRESHOLD = Flags.GESTURE_CONSTRAINT ? 1000 : Infinity;
   let timeOfLastUserGesture = Date.now();
 
   let touchStart;
@@ -346,7 +349,7 @@ export default ({worker}) => {
 
     switch (data.type) {
       case 'init-render':
-        console.assert(BUNDLE_MUTATIONS_IN_DOM);
+        console.assert(Flags.BUNDLE_MUTATIONS_IN_DOM);
         domSkeleton = deserializeDom();
         console.assert(domSkeleton.nodeName == 'BODY');
         const node = createNode(domSkeleton);
@@ -381,10 +384,6 @@ export default ({worker}) => {
         });
 
         initialRender = false;
-
-        if ('Monitoring' in window) {
-          Monitoring.renderRate.ping(); // Refresh perf monitor.
-        }
         break;
     }
 
