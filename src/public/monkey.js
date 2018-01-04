@@ -1,41 +1,50 @@
-// Install a global Document using Undom, a minimal DOM Document implementation.
-let document = self.document = undom();
-for (let i in document.defaultView) {
-  if (document.defaultView.hasOwnProperty(i)) {
-    self[i] = document.defaultView[i];
+/**
+ * Monkey-patch WorkerGlobalScope.
+ */
+
+const monkeyScope = {
+  document: undom(),
+  history: {
+    pushState(a, b, url) {
+      send({type: 'pushState', url});
+    },
+    replaceState(a, b, url) {
+      send({type: 'replaceState', url});
+    },
+  },
+  localStorage: {},
+  location: {
+    _current: '/',
+    get href() {
+      return url;
+    },
+    get pathname() {
+      return null;
+    },
+    get search() {
+      return null;
+    },
+    get hash() {
+      return null;
+    },
+  },
+  performance: self.performance,
+  url: '/',
+};
+const undomWindow = monkeyScope.document.defaultView;
+for (let i in undomWindow) {
+  if (undomWindow.hasOwnProperty(i)) {
+    monkeyScope[i] = undomWindow[i];
   }
 }
+monkeyScope.global = monkeyScope;
+monkeyScope.self = monkeyScope;
 
-let localStorage = {};
+/**
+ * Worker communication layer.
+ */
 
-let url = '/';
-
-let location = {
-  _current: '/',
-  get href() {
-    return url;
-  },
-  get pathname() {
-    return null;
-  },
-  get search() {
-    return null;
-  },
-  get hash() {
-    return null;
-  },
-};
-
-let history = {
-  pushState(a, b, url) {
-    send({type: 'pushState', url});
-  },
-  replaceState(a, b, url) {
-    send({type: 'replaceState', url});
-  },
-};
-
-let COUNTER = 0;
+let NODE_COUNTER = 0;
 
 const TO_SANITIZE = ['addedNodes', 'removedNodes', 'nextSibling', 'previousSibling', 'target'];
 
@@ -84,10 +93,10 @@ function sanitize(obj) {
     return obj.map(sanitize);
   }
 
-  if (obj instanceof document.defaultView.Node) {
+  if (obj instanceof monkeyScope.document.defaultView.Node) {
     let id = obj.__id;
     if (!id) {
-      id = obj.__id = String(++COUNTER);
+      id = obj.__id = String(++NODE_COUNTER);
     }
     NODES.set(id, obj);
   }
@@ -105,7 +114,7 @@ function sanitize(obj) {
 }
 
 if (!Flags.USE_SHARED_ARRAY_BUFFER) {
-  const observer = new MutationObserver((mutations) => {
+  const observer = new monkeyScope.MutationObserver((mutations) => {
     for (let i = mutations.length; i--; ) {
       let mutation = mutations[i];
       for (let j = TO_SANITIZE.length; j--; ) {
@@ -115,14 +124,14 @@ if (!Flags.USE_SHARED_ARRAY_BUFFER) {
     }
     send({type: 'mutate', mutations});
   });
-  observer.observe(document, {subtree: true});
+  observer.observe(monkeyScope.document, {subtree: true});
 }
 
 function serializeDom() {
   if (!sharedArray) {
     return;
   }
-  const serialized = sanitize(document.body);
+  const serialized = sanitize(monkeyScope.document.body);
   const string = JSON.stringify(serialized);
   let l = string.length;
   for (let i = 0; i < l; i++) {
