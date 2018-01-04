@@ -104,7 +104,7 @@ function sanitize(obj) {
   return out;
 }
 
-if (!Flags.BUNDLE_MUTATIONS_IN_DOM) {
+if (!Flags.USE_SHARED_ARRAY_BUFFER) {
   const observer = new MutationObserver((mutations) => {
     for (let i = mutations.length; i--; ) {
       let mutation = mutations[i];
@@ -157,7 +157,7 @@ addEventListener('message', ({data}) => {
     case 'init':
       url = data.url;
       sharedArray = new Uint16Array(data.buffer);
-      if (Flags.BUNDLE_MUTATIONS_IN_DOM) {
+      if (Flags.USE_SHARED_ARRAY_BUFFER) {
         // HACK(willchou): Should instead wait until X ms after last DOM mutation.
         setTimeout(onInitialRender, 200);
       }

@@ -1,8 +1,8 @@
 // Chrome doesn't support ES6 modules in workers yet, so we dupe the flags
 // on main page (renderer.js) and worker (undom.js).
 const Flags = {
-  GESTURE_CONSTRAINT: false,
-  BUNDLE_MUTATIONS_IN_DOM: true,
+  REQUIRE_GESTURE_TO_MUTATE: false,
+  USE_SHARED_ARRAY_BUFFER: false,
 };
 
 /**
@@ -37,7 +37,7 @@ export default ({worker}) => {
   });
 
   // Allow mutations up to 1s after user gesture.
-  const GESTURE_TO_MUTATION_THRESHOLD = Flags.GESTURE_CONSTRAINT ? 1000 : Infinity;
+  const GESTURE_TO_MUTATION_THRESHOLD = Flags.REQUIRE_GESTURE_TO_MUTATE ? 1000 : Infinity;
   let timeOfLastUserGesture = Date.now();
 
   let touchStart;
@@ -334,7 +334,7 @@ export default ({worker}) => {
     return JSON.parse(domString);
   }
 
-  const buffer = new SharedArrayBuffer(Uint16Array.BYTES_PER_ELEMENT * 10000);
+  const buffer = new SharedArrayBuffer(Uint16Array.BYTES_PER_ELEMENT * 1000);
   const sharedArray = new Uint16Array(buffer);
 
   let domSkeleton = null;
@@ -349,7 +349,7 @@ export default ({worker}) => {
 
     switch (data.type) {
       case 'init-render':
-        console.assert(Flags.BUNDLE_MUTATIONS_IN_DOM);
+        console.assert(Flags.USE_SHARED_ARRAY_BUFFER);
         domSkeleton = deserializeDom();
         console.assert(domSkeleton.nodeName == 'BODY');
         const node = createNode(domSkeleton);
@@ -386,9 +386,7 @@ export default ({worker}) => {
         initialRender = false;
         break;
     }
-
   };
-
 
   postToWorker({
     type: 'init',

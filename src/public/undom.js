@@ -1,8 +1,8 @@
 // Chrome doesn't support ES6 modules in workers yet, so we dupe the flags
 // on main page (renderer.js) and worker (undom.js).
 const Flags = {
-  GESTURE_CONSTRAINT: false,
-  BUNDLE_MUTATIONS_IN_DOM: true,
+  REQUIRE_GESTURE_TO_MUTATE: false,
+  USE_SHARED_ARRAY_BUFFER: false,
 };
 
 /*
@@ -334,7 +334,7 @@ function undom() {
     record.target = target.__id || target; // Use __id if available.
     record.type = type;
 
-    if (Flags.BUNDLE_MUTATIONS_IN_DOM) {
+    if (Flags.USE_SHARED_ARRAY_BUFFER) {
       if (initialRenderComplete) {
         target.dirty = true;
         serializeDom();
@@ -396,7 +396,7 @@ function undom() {
   function createElement(type) {
     const t = String(type).toUpperCase();
     const element = new Element(null, t);
-    if (Flags.BUNDLE_MUTATIONS_IN_DOM) {
+    if (Flags.USE_SHARED_ARRAY_BUFFER) {
       return element;
     } else {
       // Use proxy so we can observe and forward property changes e.g. HTMLInputElement.value.

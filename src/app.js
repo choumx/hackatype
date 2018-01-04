@@ -123,6 +123,6 @@ class Timer extends Component {
 
 // TODO(willchou): Support rendering to nodes other than body.
 // render(<Hello />, document.body);
-// render(<TodoApp />, document.body);
-render(<Timer />, document.body);
+render(<TodoApp />, document.body);
+// render(<Timer />, document.body);
 // render(<DBMon />, document.body);

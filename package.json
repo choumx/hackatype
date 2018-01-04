@@ -6,7 +6,7 @@
     "dev": "webpack-dev-server --content-base build",
     "start": "http-server build -p ${PORT:-8080}",
     "prestart": "npm run build",
-    "build": "npm run -s build:rollup && cp src/public/*.js build/",
+    "build": "npm run -s build:webpack && cp src/public/* build/",
     "build:webpack": "mkdirp build && ncp src/index.html build/index.html && webpack -p",
     "build:rollup": "rm -rf build && mkdirp build/todomvc-common && ncp src/index.html build/index.html && rollup -c rollup.config.js && cp node_modules/todomvc-common/base.* build/todomvc-common/ && cp node_modules/todomvc-app-css/index.css build/todomvc.css",
     "postbuild": "uglifyjs build/app.js --pure-funcs classCallCheck Object.defineProperty Object.freeze invariant warning -c unsafe,collapse_vars,evaluate,screw_ie8,loops,keep_fargs=false,pure_getters,unused,dead_code -m -o build/app.js -p relative --in-source-map build/app.js.map --source-map build/app.js.map",
