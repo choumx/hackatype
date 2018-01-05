@@ -6,15 +6,15 @@ const monkeyScope = {
   document: undom(),
   history: {
     pushState(a, b, url) {
-      send({type: 'pushState', url});
+      send({type: "pushState", url});
     },
     replaceState(a, b, url) {
-      send({type: 'replaceState', url});
+      send({type: "replaceState", url});
     },
   },
   localStorage: {},
   location: {
-    _current: '/',
+    _current: "/",
     get href() {
       return url;
     },
@@ -29,7 +29,7 @@ const monkeyScope = {
     },
   },
   performance: self.performance,
-  url: '/',
+  url: "/",
 };
 const undomWindow = monkeyScope.document.defaultView;
 for (let i in undomWindow) {
@@ -46,25 +46,37 @@ monkeyScope.self = monkeyScope;
 
 let NODE_COUNTER = 0;
 
-const TO_SANITIZE = ['addedNodes', 'removedNodes', 'nextSibling', 'previousSibling', 'target'];
+const TO_SANITIZE = [
+  "addedNodes",
+  "removedNodes",
+  "nextSibling",
+  "previousSibling",
+  "target",
+];
 
 // TODO(willchou): Replace this with something more generic.
-const PROP_BLACKLIST = ['children', 'parentNode', '__handlers', '_component', '_componentConstructor'];
+const PROP_BLACKLIST = [
+  "children",
+  "parentNode",
+  "__handlers",
+  "_component",
+  "_componentConstructor",
+];
 
 const NODES = new Map();
 
 function getNode(node) {
   let id;
-  if (node && typeof node === 'object') {
+  if (node && typeof node === "object") {
     id = node.__id;
   }
-  if (typeof node === 'string') {
+  if (typeof node === "string") {
     id = node;
   }
   if (!id) {
     return null;
   }
-  if (node.nodeName === 'BODY') {
+  if (node.nodeName === "BODY") {
     return document.body;
   }
   const n = NODES.get(id);
@@ -75,7 +87,7 @@ function handleEvent(event) {
   let target = getNode(event.target);
   if (target) {
     // Update worker DOM with user changes to <input> etc.
-    if ('__value' in event) {
+    if ("__value" in event) {
       target.value = event.__value;
     }
     event.target = target;
@@ -85,7 +97,7 @@ function handleEvent(event) {
 }
 
 function sanitize(obj) {
-  if (!obj || typeof obj !== 'object') {
+  if (!obj || typeof obj !== "object") {
     return obj;
   }
 
@@ -114,7 +126,7 @@ function sanitize(obj) {
 }
 
 if (!Flags.USE_SHARED_ARRAY_BUFFER) {
-  const observer = new monkeyScope.MutationObserver((mutations) => {
+  const observer = new monkeyScope.MutationObserver(mutations => {
     for (let i = mutations.length; i--; ) {
       let mutation = mutations[i];
       for (let j = TO_SANITIZE.length; j--; ) {
@@ -122,7 +134,7 @@ if (!Flags.USE_SHARED_ARRAY_BUFFER) {
         mutation[prop] = sanitize(mutation[prop]);
       }
     }
-    send({type: 'mutate', mutations});
+    send({type: "mutate", mutations});
   });
   observer.observe(monkeyScope.document, {subtree: true});
 }
@@ -150,8 +162,8 @@ function serializeDom() {
 function onInitialRender() {
   initialRenderComplete = true;
   serializeDom();
-  postMessage({type: 'init-render'});
-};
+  postMessage({type: "init-render"});
+}
 
 function send(message) {
   const json = JSON.parse(JSON.stringify(message));
@@ -161,9 +173,9 @@ function send(message) {
 
 let sharedArray;
 
-addEventListener('message', ({data}) => {
+addEventListener("message", ({data}) => {
   switch (data.type) {
-    case 'init':
+    case "init":
       url = data.url;
       sharedArray = new Uint16Array(data.buffer);
       if (Flags.USE_SHARED_ARRAY_BUFFER) {
@@ -171,7 +183,7 @@ addEventListener('message', ({data}) => {
         setTimeout(onInitialRender, 200);
       }
       break;
-    case 'event':
+    case "event":
       handleEvent(data.event);
       break;
   }

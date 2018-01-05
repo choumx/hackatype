@@ -10,11 +10,7 @@ const Flags = {
  * @param {Worker} opts.worker The WebWorker instance to proxy to.
  */
 export default ({worker}) => {
-  const EVENTS_TO_PROXY = [
-    'change',
-    'click',
-    'focus',
-  ];
+  const EVENTS_TO_PROXY = ["change", "click", "focus"];
 
   const NODES = new Map();
 
@@ -23,21 +19,23 @@ export default ({worker}) => {
     if (!nodeOrId) {
       return null;
     }
-    if (typeof nodeOrId == 'string') {
+    if (typeof nodeOrId == "string") {
       return NODES.get(nodeOrId);
     }
-    if (nodeOrId.nodeName === 'BODY') {
-      return document.querySelector('#root'); // TODO(willchou)
+    if (nodeOrId.nodeName === "BODY") {
+      return document.querySelector("#root"); // TODO(willchou)
     }
     return NODES.get(nodeOrId.__id);
   }
 
-  EVENTS_TO_PROXY.forEach((e) => {
+  EVENTS_TO_PROXY.forEach(e => {
     addEventListener(e, proxyEvent, {capture: true, passive: true});
   });
 
   // Allow mutations up to 1s after user gesture.
-  const GESTURE_TO_MUTATION_THRESHOLD = Flags.REQUIRE_GESTURE_TO_MUTATE ? 1000 : Infinity;
+  const GESTURE_TO_MUTATION_THRESHOLD = Flags.REQUIRE_GESTURE_TO_MUTATE
+    ? 1000
+    : Infinity;
   let timeOfLastUserGesture = Date.now();
 
   let touchStart;
@@ -46,14 +44,17 @@ export default ({worker}) => {
    * @param {*} message
    */
   function postToWorker(message) {
-    const eventType = (message.event ? ':' + message.event.type : '');
+    const eventType = message.event ? ":" + message.event.type : "";
     console.info(`Posting "${message.type + eventType}" to worker:`, message);
     worker.postMessage(message);
   }
 
   /** Derives {pageX,pageY} coordinates from a mouse or touch event. */
   function getTouch(e) {
-    let t = (e.changedTouches && e.changedTouches[0]) || (e.touches && e.touches[0]) || e;
+    let t =
+      (e.changedTouches && e.changedTouches[0]) ||
+      (e.touches && e.touches[0]) ||
+      e;
     return t && {pageX: t.pageX, pageY: t.pageY};
   }
 
@@ -61,7 +62,7 @@ export default ({worker}) => {
   function proxyEvent(e) {
     timeOfLastUserGesture = Date.now();
 
-    if (e.type === 'click' && touchStart) {
+    if (e.type === "click" && touchStart) {
       return false;
     }
 
@@ -72,7 +73,7 @@ export default ({worker}) => {
 
     // For change events, update worker with new `value` prop.
     // TODO(willchou): Complete support for user input (e.g. input events, other props).
-    if (e.type == 'change' && 'value' in e.target) {
+    if (e.type == "change" && "value" in e.target) {
       event.__value = e.target.value;
     }
 
@@ -80,36 +81,42 @@ export default ({worker}) => {
     for (let i in e) {
       let v = e[i];
       const typeOfV = typeof v;
-      if (typeOfV !== 'object' && typeOfV !== 'function'
-          && i !== i.toUpperCase() && !event.hasOwnProperty(i)) {
+      if (
+        typeOfV !== "object" &&
+        typeOfV !== "function" &&
+        i !== i.toUpperCase() &&
+        !event.hasOwnProperty(i)
+      ) {
         event[i] = v;
       }
     }
 
-    postToWorker({type: 'event', event});
+    postToWorker({type: "event", event});
 
     // Recategorize very close touchstart/touchend events as clicks.
     // TODO(willchou): Unnecessary?
-    if (e.type === 'touchstart') {
+    if (e.type === "touchstart") {
       touchStart = getTouch(e);
-    } else if (e.type === 'touchend' && touchStart) {
+    } else if (e.type === "touchend" && touchStart) {
       let touchEnd = getTouch(e);
       if (touchEnd) {
-        let dist = Math.sqrt(Math.pow(touchEnd.pageX - touchStart.pageX, 2) + Math.pow(touchEnd.pageY - touchStart.pageY, 2));
+        let dist = Math.sqrt(
+          Math.pow(touchEnd.pageX - touchStart.pageX, 2) +
+            Math.pow(touchEnd.pageY - touchStart.pageY, 2)
+        );
         if (dist < 10) {
-          event.type = 'click';
-          postToWorker({type: 'event', event});
+          event.type = "click";
+          postToWorker({type: "event", event});
         }
       }
     }
   }
 
-
   /** Create a real DOM Node from a skeleton Object (`{ nodeType, nodeName, attributes, children, data }`)
-  * @example <caption>Text node</caption>
-  *   createNode({ nodeType:3, data:'foo' })
-  * @example <caption>Element node</caption>
-  *   createNode({ nodeType:1, nodeName:'div', attributes:[{ name:'a', value:'b' }], childNodes:[ ... ] })
+   * @example <caption>Text node</caption>
+   *   createNode({ nodeType:3, data:'foo' })
+   * @example <caption>Element node</caption>
+   *   createNode({ nodeType:1, nodeName:'div', attributes:[{ name:'a', value:'b' }], childNodes:[ ... ] })
    */
   function createNode(skeleton) {
     let node;
@@ -145,7 +152,13 @@ export default ({worker}) => {
 
   /** Apply MutationRecord mutations, keyed by type. */
   const MUTATIONS = {
-    childList({target, removedNodes, addedNodes, previousSibling, nextSibling}) {
+    childList({
+      target,
+      removedNodes,
+      addedNodes,
+      previousSibling,
+      nextSibling,
+    }) {
       let parent = getNode(target);
       if (removedNodes) {
         for (let i = removedNodes.length; i--; ) {
@@ -158,7 +171,10 @@ export default ({worker}) => {
           if (!newNode) {
             newNode = createNode(addedNodes[i]);
           }
-          parent.insertBefore(newNode, nextSibling && getNode(nextSibling) || null);
+          parent.insertBefore(
+            newNode,
+            (nextSibling && getNode(nextSibling)) || null
+          );
         }
       }
     },
@@ -204,9 +220,7 @@ export default ({worker}) => {
     let timedOut = false;
 
     for (let i = 0; i < MUTATION_QUEUE.length; i++) {
-      if (isDeadline
-          ? deadline.timeRemaining() <= 0
-          : (Date.now() - start) > 1) {
+      if (isDeadline ? deadline.timeRemaining() <= 0 : Date.now() - start > 1) {
         timedOut = true;
         break;
       }
@@ -214,12 +228,15 @@ export default ({worker}) => {
 
       const latency = m.timestamp - timeOfLastUserGesture;
       if (latency > GESTURE_TO_MUTATION_THRESHOLD) {
-        console.warn(`Mutation latency exceeded (${latency}). Queued until next gesture: `, m);
+        console.warn(
+          `Mutation latency exceeded (${latency}). Queued until next gesture: `,
+          m
+        );
         continue;
       }
 
       // if the element is offscreen, skip any text or attribute changes:
-      if (m.type === 'characterData' || m.type === 'attributes') {
+      if (m.type === "characterData" || m.type === "attributes") {
         let target = getNode(m.target);
         if (target && !isElementInViewport(target)) {
           continue;
@@ -304,8 +321,8 @@ export default ({worker}) => {
   }
 
   let initialRender = true;
-  const aotRoot = document.querySelector('[amp-aot]');
-  const metrics = document.querySelector('#metrics');
+  const aotRoot = document.querySelector("[amp-aot]");
+  const metrics = document.querySelector("#metrics");
 
   function repaintDirty(skeleton) {
     if (skeleton.dirty) {
@@ -321,7 +338,7 @@ export default ({worker}) => {
   }
 
   function deserializeDom() {
-    let domString = '';
+    let domString = "";
     for (let i = 0, l = sharedArray.length; i < l; i++) {
       const b = Atomics.load(sharedArray, i);
       if (b > 0) {
@@ -348,21 +365,21 @@ export default ({worker}) => {
     console.info(`Received "${data.type}" from worker:`, data);
 
     switch (data.type) {
-      case 'init-render':
+      case "init-render":
         console.assert(Flags.USE_SHARED_ARRAY_BUFFER);
         domSkeleton = deserializeDom();
-        console.assert(domSkeleton.nodeName == 'BODY');
+        console.assert(domSkeleton.nodeName == "BODY");
         const node = createNode(domSkeleton);
         document.body.appendChild(node);
         break;
 
-      case 'dom-update':
+      case "dom-update":
         console.assert(domSkeleton);
         domSkeleton = deserializeDom();
         repaintDirty(domSkeleton);
         break;
 
-      case 'mutate':
+      case "mutate":
         const now = Date.now();
 
         data.mutations.forEach(mutation => {
@@ -372,12 +389,12 @@ export default ({worker}) => {
           if (initialRender && aotRoot) {
             // Check if mutation record looks like the root containing `amp-aot` attr.
             // If so, set __id on all matching DOM elements.
-            console.info('Hydrating AOT root: ', aotRoot);
-            console.assert(mutation.type == 'childList' && mutation.addedNodes);
+            console.info("Hydrating AOT root: ", aotRoot);
+            console.assert(mutation.type == "childList" && mutation.addedNodes);
             mutation.addedNodes.forEach(n => hydrate(aotRoot, n));
             return;
           } else if (initialRender) {
-            console.warn('No AOT root found!');
+            console.warn("No AOT root found!");
           }
 
           enqueueMutation(mutation);
@@ -389,7 +406,7 @@ export default ({worker}) => {
   };
 
   postToWorker({
-    type: 'init',
+    type: "init",
     location: location.href,
     buffer,
   });
