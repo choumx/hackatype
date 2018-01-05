@@ -15,6 +15,9 @@
       } */
     </style>
     <!-- <link rel="stylesheet" type="text/css" href="dbmon.css"> -->
+
+    <!-- Set CSP (which worker also adopts) to prevent unsafe-eval. -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self' blob:">
   </head>
   <body>
     <script async type=module src=entry.js></script>
