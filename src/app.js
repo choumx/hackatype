@@ -35,22 +35,44 @@ const TodoList = props => (
   <ul>{props.items.map(item => <li key={item.id}>{item.text}</li>)}</ul>
 );
 class TodoApp extends Component {
-  constructor(props) {
-    super(props);
+  state = {
+    items: [],
+    text: "<Add TODO>",
+    id: 0,
+    focused: false,
+  };
 
-    this.state = {
-      items: [],
-      text: "<Add TODO>",
-      id: 0,
-      focused: false,
-    };
+  handleChange = e => {
+    this.setState({
+      text: e.target.value,
+    });
+  };
+  handleFocus = e => {
+    // Clear placeholder text on first focus.
+    if (!this.state.focused) {
+      this.setState({
+        text: "",
+        focused: true,
+      });
+    }
+  };
+  handleSubmit = e => {
+    const {text, id} = this.state;
 
-    this.handleChange = this.handleChange.bind(this);
-    this.handleFocus = this.handleFocus.bind(this);
-    this.handleSubmit = this.handleSubmit.bind(this);
-  }
+    if (!text.length) {
+      return;
+    }
+    this.setState(prevState => ({
+      items: prevState.items.concat({
+        text,
+        id,
+      }),
+      text: "",
+      id: prevState.id + 1,
+    }));
+  };
 
-  render(props, state) {
+  render(_, state) {
     return (
       <div>
         <h3>TODO</h3>
@@ -66,52 +88,15 @@ class TodoApp extends Component {
       </div>
     );
   }
-
-  handleChange(e) {
-    this.setState({
-      text: e.target.value,
-    });
-  }
-
-  handleFocus(e) {
-    // Clear placeholder text on first focus.
-    if (!this.state.focused) {
-      this.setState({
-        text: "",
-        focused: true,
-      });
-    }
-  }
-
-  handleSubmit(e) {
-    const {text, id} = this.state;
-
-    if (!text.length) {
-      return;
-    }
-    this.setState(prevState => ({
-      items: prevState.items.concat({
-        text,
-        id,
-      }),
-      text: "",
-      id: prevState.id + 1,
-    }));
-  }
 }
 
 /** Timer example from https://reactjs.org */
 class Timer extends Component {
-  constructor(props) {
-    super(props);
-    this.state = {
-      seconds: 0,
-    };
+  state = {
+    seconds: 0,
+  };
 
-    this.tick = this.tick.bind(this);
-  }
-
-  tick() {
+  tick = () => {
     this.setState(prevState => ({
       seconds: prevState.seconds + 1,
     }));
@@ -120,7 +105,6 @@ class Timer extends Component {
   componentDidMount() {
     this.interval = setInterval(this.tick, 1000);
   }
-
   componentWillUnmount() {
     clearInterval(this.interval);
   }
@@ -132,6 +116,6 @@ class Timer extends Component {
 
 // TODO(willchou): Support rendering to nodes other than body.
 // render(<Hello />, document.body);
-render(<TodoApp />, document.body);
+// render(<TodoApp />, document.body);
 // render(<Timer />, document.body);
-// render(<DBMon />, document.body);
+render(<DBMon />, document.body);

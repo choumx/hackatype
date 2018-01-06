@@ -14,7 +14,7 @@ Promise.all([
     monkey,
     "(function() {", // Set `this` to `monkeyScope`.
     "  with (monkeyScope) {", // Shadow global vars e.g. `self`.
-    trickyGlobal,
+    //trickyGlobal,
     app,
     "  }",
     "}).call(monkeyScope);",

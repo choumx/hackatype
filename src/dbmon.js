@@ -231,13 +231,13 @@ class Query extends Component {
     if (nextProps.query !== this.props.query) return true;
     return false;
   }
-  render() {
+  render(props) {
     return (
-      <td className={"Query " + this.props.elapsedClassName}>
-        {this.props.formatElapsed}
-        <div className="popover left">
-          <div className="popover-content">{this.props.query}</div>
-          <div className="arrow" />
+      <td class={`Query ${props.elapsedClassName}`}>
+        {props.formatElapsed}
+        <div class="popover left">
+          <div class="popover-content">{props.query}</div>
+          <div class="arrow" />
         </div>
       </td>
     );
@@ -246,71 +246,62 @@ class Query extends Component {
 
 class Database extends Component {
   shouldComponentUpdate(nextProps, nextState) {
-    if (nextProps.lastMutationId === this.props.lastMutationId) return false;
-    return true;
+    return nextProps.lastMutationId !== this.props.lastMutationId;
   }
-  render() {
-    var lastSample = this.props.lastSample;
+
+  render({lastSample, dbname}) {
     return (
-      <tr key={this.props.dbname}>
-        <td className="dbname">{this.props.dbname}</td>
-        <td className="query-count">
-          <span className={this.props.lastSample.countClassName}>
-            {this.props.lastSample.nbQueries}
+      <tr key={dbname}>
+        <td class="dbname">{dbname}</td>
+        <td class="query-count">
+          <span class={lastSample.countClassName}>
+            {lastSample.nbQueries}
           </span>
         </td>
-        {this.props.lastSample.topFiveQueries.map(function(query, index) {
-          return (
-            <Query
-              key={index}
-              query={query.query}
-              elapsed={query.elapsed}
-              formatElapsed={query.formatElapsed}
-              elapsedClassName={query.elapsedClassName}
-            />
-          );
-        })}
+        {lastSample.topFiveQueries.map((query, index) => (
+          <Query
+            key={index}
+            query={query.query}
+            elapsed={query.elapsed}
+            formatElapsed={query.formatElapsed}
+            elapsedClassName={query.elapsedClassName}
+          />
+        ))}
       </tr>
     );
   }
 }
 
 export class DBMon extends Component {
-  constructor(props) {
-    super(props);
+  state = {databases: []};
 
-    this.state = {databases: []};
-  }
-
-  loadSamples() {
+  loadSamples = _ => {
     this.setState({
       databases: ENV.generateData(true).toArray(),
     });
     // Monitoring.renderRate.ping();
-    setTimeout(this.loadSamples.bind(this), ENV.timeout);
+    setTimeout(this.loadSamples, ENV.timeout);
   }
 
   componentDidMount() {
     this.loadSamples();
   }
 
-  render() {
-    var databases = this.state.databases.map(function(database) {
-      return (
-        <Database
-          key={database.dbname}
-          lastMutationId={database.lastMutationId}
-          dbname={database.dbname}
-          samples={database.samples}
-          lastSample={database.lastSample}
-        />
-      );
-    });
-
+  render(_, state) {
     return (
       <div>
-        <table className="table table-striped latest-data">
-          <tbody>{databases}</tbody>
+        <table class="table table-striped latest-data">
+          <tbody>
+            {state.databases.map(database => (
+              <Database
+                key={database.dbname}
+                lastMutationId={database.lastMutationId}
+                dbname={database.dbname}
+                samples={database.samples}
+                lastSample={database.lastSample}
+              />
+            ))}
+          </tbody>
         </table>
       </div>
     );

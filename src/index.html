@@ -14,7 +14,7 @@
         font-size: 2em;
       } */
     </style>
-    <!-- <link rel="stylesheet" type="text/css" href="dbmon.css"> -->
+    <link rel="stylesheet" type="text/css" href="dbmon.css">
 
     <!-- Set CSP (which worker also adopts) to prevent unsafe-eval. -->
     <meta http-equiv="Content-Security-Policy" content="default-src 'self' blob:">
@@ -26,7 +26,9 @@
 
     <div id="root">
       <!-- AOT render that will be hydrated during init. -->
-      <div amp-aot><h3>TODO</h3><ul></ul><input value="<Add TODO>" /><button>Add #1</button></div>
+      <!-- <div amp-aot><h3>TODO</h3><ul></ul><input value="<Add TODO>" /><button>Add #1</button></div> -->
+      <!-- <div amp-aot>Seconds: 0</div> -->
+      <div amp-aot><table class="table table-striped latest-data"><tbody></tbody></table></div>
     </div>
   </body>
 </html>
