@@ -272,7 +272,7 @@ class Database extends Component {
   }
 }
 
-export class DBMon extends Component {
+class Databases extends Component {
   state = {databases: []};
 
   loadSamples = _ => {
@@ -289,21 +289,83 @@ export class DBMon extends Component {
 
   render(_, state) {
     return (
+      <tbody>
+        {state.databases.map(database => (
+          <Database
+            key={database.dbname}
+            lastMutationId={database.lastMutationId}
+            dbname={database.dbname}
+            samples={database.samples}
+            lastSample={database.lastSample}
+          />
+        ))}
+      </tbody>
+    );
+  }
+}
+
+export class DBMon extends Component {
+  state = {mutations: 0.5}
+  
+  handleSliderChange = e => {
+    const mutations = e.target.value/100;
+    
+    ENV.mutations(mutations);
+    this.setState({
+      mutations
+    });
+  }
+
+  render(_, state) {
+    return (
       <div>
+        <div style={'display:flex'}>
+          mutations: {(state.mutations * 100).toFixed(0)}
+          <input type="range" style={'margin-bottom: 10px; margin-top: 5px'} onchange={this.handleSliderChange}></input>
+        </div>
         <table class="table table-striped latest-data">
-          <tbody>
-            {state.databases.map(database => (
-              <Database
-                key={database.dbname}
-                lastMutationId={database.lastMutationId}
-                dbname={database.dbname}
-                samples={database.samples}
-                lastSample={database.lastSample}
-              />
-            ))}
-          </tbody>
+          <Databases />
         </table>
       </div>
     );
   }
 }
+
+// export class DBMon extends Component {
+//   state = {databases: []};
+
+//   loadSamples = _ => {
+//     this.setState({
+//       databases: ENV.generateData(true).toArray(),
+//     });
+//     // Monitoring.renderRate.ping();
+//     setTimeout(this.loadSamples, ENV.timeout);
+//   }
+
+//   componentDidMount() {
+//     this.loadSamples();
+//   }
+
+//   render(_, state) {
+//     return (
+//       <div>
+//         <div style={'display:flex'}>
+
+//         </div>
+//         <table class="table table-striped latest-data">
+//           <tbody>
+//             {state.databases.map(database => (
+//               <Database
+//                 key={database.dbname}
+//                 lastMutationId={database.lastMutationId}
+//                 dbname={database.dbname}
+//                 samples={database.samples}
+//                 lastSample={database.lastSample}
+//               />
+//             ))}
+//           </tbody>
+//         </table>
+//       </div>
+//     );
+//   }
+// }
