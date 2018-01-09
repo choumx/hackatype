@@ -16,7 +16,10 @@
     </style>
     <!-- <link rel="stylesheet" type="text/css" href="dbmon.css"> -->
 
-    <!-- Set CSP (which worker also adopts) to prevent unsafe-eval. -->
+    <!--
+    Set CSP (which worker also adopts) to prevent unsafe-eval.
+    TODO(willchou): How does `sandbox` directive affect workers? Must be set on HTTP header.
+    -->
     <meta http-equiv="Content-Security-Policy" content="default-src 'self' blob:">
   </head>
   <body>
