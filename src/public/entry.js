@@ -5,7 +5,7 @@ Promise.all([
   fetch('monkey.js').then((response) => response.text()),
   fetch('app.js').then((response) => response.text()),
 ]).then(([undom, monkey, app]) => {
-  const globalEscapes =
+  const globalEscapesCheck =
       `(function() {
         try {
           const g = Function("return this")() || (0, eval)("this"); // CSP should disallow this.
@@ -27,11 +27,14 @@ Promise.all([
       const Event = this.Event;
       const MutationObserver = this.MutationObserver;`;
 
+  // TODO(willchou): Write runtime check that class globals like
+  // `WorkerGlobalScope` and `XmlHttpRequest` are not available.
+
   const code = [
     undom,
     monkey,
     '(function() {', // Set `this` to `monkeyScope`.
-      globalEscapes,
+      globalEscapesCheck,
       monkeyGlobal,
       app,
     '}).call(monkeyScope);',

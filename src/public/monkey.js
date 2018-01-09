@@ -99,16 +99,20 @@ const WHITELISTED_GLOBALS = {
 Object.keys(monkeyScope).forEach(monkeyProp => {
   WHITELISTED_GLOBALS[monkeyProp] = true;
 });
+
 // Delete non-whitelisted properties from global scope.
-for (const prop in self) {
+// TODO(willchou): This doesn't check inherited props. Need to walk up prototype chain.
+Object.getOwnPropertyNames(self).forEach(prop => {
   if (!WHITELISTED_GLOBALS[prop]) {
     try {
+      console.log(`Deleting "${prop}" from self...`);
       delete self[prop];
     } catch (e) {
-      console.info(e)
+      // TODO(willchou): Don't try to delete functions from undom.js.
+      console.error(e)
     }
   }
-}
+});
 
 /**
  * Worker communication layer.
