@@ -5,8 +5,7 @@ Promise.all([
   fetch('monkey.js').then((response) => response.text()),
   fetch('app.js').then((response) => response.text()),
 ]).then(([undom, monkey, app]) => {
-
-  const trickyGlobal =
+  const globalEscapes =
       `(function() {
         try {
           const g = Function("return this")() || (0, eval)("this"); // CSP should disallow this.
@@ -16,13 +15,24 @@ Promise.all([
         console.assert(!f);
       })();`;
 
+  // `with()` not allowed in strict mode.
+  const monkeyGlobal =
+      `const self = this;
+      const document = this.document;
+      const Node = this.Node;
+      const Text = this.Text;
+      const Element = this.Element;
+      const SVGElement = this.SVGElement;
+      const Document = this.Document;
+      const Event = this.Event;
+      const MutationObserver = this.MutationObserver;`;
+
   const code = [
     undom,
     monkey,
     '(function() {', // Set `this` to `monkeyScope`.
-    '  const self = monkeyScope;',
-    '  const document = monkeyScope;',
-      trickyGlobal,
+      globalEscapes,
+      monkeyGlobal,
       app,
     '}).call(monkeyScope);',
   ].join('\n');

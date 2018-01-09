@@ -39,8 +39,8 @@ for (let i in undomWindow) {
   }
 }
 
-debugger;
-
+// Grabbed the first ~50 properties on DedicatedGlobalWorkerScope object.
+// TODO(willchou): Make this more precise.
 const WHITELISTED_GLOBALS = {
   'Object': true,
   'Function': true,
@@ -94,6 +94,7 @@ const WHITELISTED_GLOBALS = {
   'eval': true,
   'isFinite': true,
   'isNaN': true,
+  'postMessage': true, // TODO(willchou): Remove and privilege this.
 };
 Object.keys(monkeyScope).forEach(monkeyProp => {
   WHITELISTED_GLOBALS[monkeyProp] = true;
