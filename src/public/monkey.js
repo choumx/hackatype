@@ -31,14 +31,83 @@ const monkeyScope = {
   performance: self.performance,
   url: '/',
 };
+// Surface top-level undom window properties e.g document, Element.
 const undomWindow = monkeyScope.document.defaultView;
 for (let i in undomWindow) {
   if (undomWindow.hasOwnProperty(i)) {
     monkeyScope[i] = undomWindow[i];
   }
 }
-monkeyScope.global = monkeyScope;
-monkeyScope.self = monkeyScope;
+
+debugger;
+
+const WHITELISTED_GLOBALS = {
+  'Object': true,
+  'Function': true,
+  'Array': true,
+  'Number': true,
+  'parseFloat': true,
+  'parseInt': true,
+  'Infinity': true,
+  'NaN': true,
+  'undefined': true,
+  'Boolean': true,
+  'String': true,
+  'Symbol': true,
+  'Date': true,
+  'Promise': true,
+  'RegExp': true,
+  'Error': true,
+  'EvalError': true,
+  'RangeError': true,
+  'ReferenceError': true,
+  'SyntaxError': true,
+  'TypeError': true,
+  'URIError': true,
+  'JSON': true,
+  'Math': true,
+  'console': true,
+  'Intl': true,
+  'ArrayBuffer': true,
+  'Uint8Array': true,
+  'Int8Array': true,
+  'Uint16Array': true,
+  'Int16Array': true,
+  'Uint32Array': true,
+  'Int32Array': true,
+  'Float32Array': true,
+  'Float64Array': true,
+  'Uint8ClampedArray': true,
+  'DataView': true,
+  'Map': true,
+  'Set': true,
+  'WeakMap': true,
+  'WeakSet': true,
+  'Proxy': true,
+  'Reflect': true,
+  'decodeURI': true,
+  'decodeURIComponent': true,
+  'encodeURI': true,
+  'encodeURIComponent': true,
+  'escape': true,
+  'unescape': true,
+  'eval': true,
+  'isFinite': true,
+  'isNaN': true,
+};
+Object.keys(monkeyScope).forEach(monkeyProp => {
+  WHITELISTED_GLOBALS[monkeyProp] = true;
+});
+// Delete non-whitelisted properties from global scope.
+for (const prop in self) {
+  if (!WHITELISTED_GLOBALS[prop]) {
+    try {
+      delete self[prop];
+    } catch (e) {
+      console.info(e)
+    }
+  }
+}
 
 /**
  * Worker communication layer.
@@ -164,9 +233,10 @@ let sharedArray;
 addEventListener('message', ({data}) => {
   switch (data.type) {
     case 'init':
-      url = data.url;
-      sharedArray = new Uint16Array(data.buffer);
+      monkeyScope.url = data.url;
+
       if (Flags.USE_SHARED_ARRAY_BUFFER) {
+        sharedArray = new Uint16Array(data.buffer);
         // HACK(willchou): Should instead wait until X ms after last DOM mutation.
         setTimeout(onInitialRender, 200);
       }

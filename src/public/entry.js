@@ -12,10 +12,10 @@ Promise.all([
     undom,
     monkey,
     '(function() {', // Set `this` to `monkeyScope`.
-    '  with (monkeyScope) {', // Shadow global vars e.g. `self`.
-        trickyGlobal,
-        app,
-    '  }',
+    '  const self = monkeyScope;',
+    '  const document = monkeyScope;',
+      trickyGlobal,
+      app,
     '}).call(monkeyScope);',
   ].join('\n');
 

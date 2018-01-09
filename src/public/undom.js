@@ -1,3 +1,6 @@
+// Prevent leaking global in functions with no callers.
+'use strict';
+
 // Chrome doesn't support ES6 modules in workers yet, so we dupe the flags
 // on main page (renderer.js) and worker (undom.js).
 const Flags = {

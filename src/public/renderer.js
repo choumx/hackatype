@@ -334,8 +334,12 @@ export default ({worker}) => {
     return JSON.parse(domString);
   }
 
-  const buffer = new SharedArrayBuffer(Uint16Array.BYTES_PER_ELEMENT * 1000);
-  const sharedArray = new Uint16Array(buffer);
+  let buffer = null;
+  let sharedArray = null;
+  if (Flags.USE_SHARED_ARRAY_BUFFER) {
+    buffer = new SharedArrayBuffer(Uint16Array.BYTES_PER_ELEMENT * 1000);
+    sharedArray = new Uint16Array(buffer);
+  }
 
   let domSkeleton = null;
 
