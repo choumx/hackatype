@@ -5,8 +5,16 @@ Promise.all([
   fetch('monkey.js').then((response) => response.text()),
   fetch('app.js').then((response) => response.text()),
 ]).then(([undom, monkey, app]) => {
-  // CSP should disallow this.
-  const trickyGlobal = 'debugger; try { const g = Function("return this")() || (0, eval)("this"); console.assert(!g); } catch (e) {}';
+
+  const trickyGlobal =
+      `(function() {
+        try {
+          const g = Function("return this")() || (0, eval)("this"); // CSP should disallow this.
+          console.assert(!g);
+        } catch (e) {}
+        const f = (function() { return this })(); // Strict mode should disallow this.
+        console.assert(!f);
+      })();`;
 
   const code = [
     undom,
