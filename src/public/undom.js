@@ -407,4 +407,4 @@ let undom = function() {
   }
 
   return createDocument();
-}
+};

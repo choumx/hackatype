@@ -28,7 +28,6 @@ const monkeyScope = {
       return null;
     },
   },
-  performance: self.performance,
   url: '/',
 };
 // Surface top-level undom window properties e.g document, Element.
@@ -160,7 +159,7 @@ for (let i in undomWindow) {
 
   function send(message) {
     const json = JSON.parse(JSON.stringify(message));
-    json.timestamp = self.performance.now();
+    json.timestamp = performance.now();
     __postMessage(json);
   }
 
@@ -182,7 +181,7 @@ for (let i in undomWindow) {
         break;
     }
   });
-})(monkeyScope, self.postMessage);
+})(monkeyScope, postMessage);
 
 /**
  * Dereference non-whitelisted globals.
@@ -243,21 +242,38 @@ const WHITELISTED_GLOBALS = {
   'eval': true,
   'isFinite': true,
   'isNaN': true,
+  // Custom additions.
+  'performance': true,
 };
 Object.keys(monkeyScope).forEach(monkeyProp => {
   WHITELISTED_GLOBALS[monkeyProp] = true;
 });
 
+debugger;
+
 // Delete non-whitelisted properties from global scope.
-// TODO(willchou): This doesn't check inherited props. Need to walk up prototype chain.
-Object.getOwnPropertyNames(self).forEach(prop => {
-  if (!WHITELISTED_GLOBALS[prop]) {
+(function() {
+  function deleteUnsafe(object, property) {
+    if (WHITELISTED_GLOBALS[property]) {
+      return;
+    }
+    // TODO(willchou): Instead of deleting, throw custom error at runtime?
     try {
-      console.log(`Deleting "${prop}" from self...`);
-      delete self[prop];
+      console.info(`Deleting "${property}"...`);
+      delete object[property];
     } catch (e) {
-      // TODO(willchou): Don't try to delete functions from undom.js.
       console.error(e)
     }
   }
-});
+
+  let current = self;
+  while (current) {
+    console.info('Removing unsafe references from:', current);
+    Object.getOwnPropertyNames(current).forEach(prop => {
+      deleteUnsafe(current, prop);
+    });
+    // getOwnPropertyNames() doesn't include inherited properties,
+    // so manually walk up the prototype chain.
+    current = Object.getPrototypeOf(current);
+  }
+})();
