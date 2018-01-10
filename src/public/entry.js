@@ -5,19 +5,22 @@ Promise.all([
   fetch('monkey.js').then((response) => response.text()),
   fetch('app.js').then((response) => response.text()),
 ]).then(([undom, monkey, app]) => {
-  const globalEscapesCheck =
-      `(function() {
+  // Checks tricky ways to get the global scope.
+  const globalEscapesCheck = `
+      (function() {
         try {
-          const g = Function("return this")() || (0, eval)("this"); // CSP should disallow this.
-          console.assert(!g);
+          console.assert(!(Function("return this")())); // CSP should disallow this.
+        } catch (e) {}
+        try {
+          console.assert(!((0, eval)("this"))); // CSP should disallow this.
         } catch (e) {}
         const f = (function() { return this })(); // Strict mode should disallow this.
         console.assert(!f);
       })();`;
 
   // `with()` not allowed in strict mode.
-  const monkeyGlobal =
-      `const self = this;
+  const monkeyGlobal = `
+      const self = this;
       const document = this.document;
       const Node = this.Node;
       const Text = this.Text;
@@ -27,8 +30,17 @@ Promise.all([
       const Event = this.Event;
       const MutationObserver = this.MutationObserver;`;
 
-  // TODO(willchou): Write runtime check that class globals like
-  // `WorkerGlobalScope` and `XmlHttpRequest` are not available.
+  // Check that class globals are not available.
+  const classGlobalsCheck = `
+      try { console.assert(!WorkerGlobalScope); } catch (e) {
+        console.assert(e.message == 'WorkerGlobalScope is not defined');
+      }
+      try { console.assert(!DedicatedWorkerGlobalScope); } catch (e) {
+        console.assert(e.message == 'DedicatedWorkerGlobalScope is not defined');
+      }
+      try { console.assert(!XmlHttpRequest); } catch (e) {
+        console.assert(e.message == 'XmlHttpRequest is not defined');
+      }`;
 
   const code = [
     undom,
@@ -36,6 +48,8 @@ Promise.all([
     '(function() {', // Set `this` to `monkeyScope`.
       globalEscapesCheck,
       monkeyGlobal,
+      classGlobalsCheck,
+      'debugger;',
       app,
     '}).call(monkeyScope);',
   ].join('\n');

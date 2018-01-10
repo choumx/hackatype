@@ -27,7 +27,7 @@ export default ({worker}) => {
       return NODES.get(nodeOrId);
     }
     if (nodeOrId.nodeName === 'BODY') {
-      return document.querySelector('#root'); // TODO(willchou)
+      return document.querySelector('#root'); // TODO(willchou): Dirty hack to render to a div instead of body.
     }
     return NODES.get(nodeOrId.__id);
   }

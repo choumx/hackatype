@@ -8,71 +8,51 @@ const Flags = {
   USE_SHARED_ARRAY_BUFFER: false,
 };
 
-/*
- * util.js
- */
-
-function assign(obj, props) {
-  for (let i in props) { // eslint-disable-line guard-for-in
-    obj[i] = props[i];
-  }
-}
-
-function toLower(str) {
-  return String(str).toLowerCase();
-}
-
-function createAttributeFilter(ns, name) {
-  return (o) => o.ns === ns && toLower(o.name) === toLower(name);
-}
-
-function splice(arr, item, add, byValueOnly) {
-  let i = arr ? findWhere(arr, item, true, byValueOnly) : -1;
-  if (~i) {
-    add
-        ? arr.splice(i, 0, add)
-        : arr.splice(i, 1);
-  }
-  return i;
-}
-
-function findWhere(arr, fn, returnIndex, byValueOnly) {
-  let i = arr.length;
-  while (i--) {
-    if (typeof fn === 'function' && !byValueOnly
-        ? fn(arr[i])
-        : arr[i] === fn) {
-      break;
-    }
-  }
-  return returnIndex ? i : arr[i];
-}
-
-/*
- * undom.js
- */
-
-/*
-const NODE_TYPES = {
-  ELEMENT_NODE: 1,
-  ATTRIBUTE_NODE: 2,
-  TEXT_NODE: 3,
-  CDATA_SECTION_NODE: 4,
-  ENTITY_REFERENCE_NODE: 5,
-  COMMENT_NODE: 6,
-  PROCESSING_INSTRUCTION_NODE: 7,
-  DOCUMENT_NODE: 9
-};
-*/
-
 let initialRenderComplete = false;
 
-/** Create a minimally viable DOM Document
- *  @returns {Document} document
- */
-function undom() {
-  let observers = [],
-    pendingMutations = false;
+// Variables in global scope are not enumerable and won't be dereferenced
+// (which wouldn't work anyways).
+// TODO(willchou): Figure out a way to avoid polluting the global scope with
+// these variables/functions or define a naming convention for them.
+let undom = function() {
+  let observers = [];
+  let pendingMutations = false;
+
+  function assign(obj, props) {
+    for (let i in props) { // eslint-disable-line guard-for-in
+      obj[i] = props[i];
+    }
+  }
+
+  function toLower(str) {
+    return String(str).toLowerCase();
+  }
+
+  function createAttributeFilter(ns, name) {
+    return (o) => o.ns === ns && toLower(o.name) === toLower(name);
+  }
+
+  function splice(arr, item, add, byValueOnly) {
+    let i = arr ? findWhere(arr, item, true, byValueOnly) : -1;
+    if (~i) {
+      add
+          ? arr.splice(i, 0, add)
+          : arr.splice(i, 1);
+    }
+    return i;
+  }
+
+  function findWhere(arr, fn, returnIndex, byValueOnly) {
+    let i = arr.length;
+    while (i--) {
+      if (typeof fn === 'function' && !byValueOnly
+          ? fn(arr[i])
+          : arr[i] === fn) {
+        break;
+      }
+    }
+    return returnIndex ? i : arr[i];
+  }
 
   /**
    * Node.

@@ -39,8 +39,157 @@ for (let i in undomWindow) {
   }
 }
 
-// Grabbed the first ~50 properties on DedicatedGlobalWorkerScope object.
-// TODO(willchou): Make this more precise.
+/**
+ * Worker communication layer.
+ */
+
+// Use an IIFE to "store" references to globals that we'll dereference from `self` below.
+// This makes sure that (1) privileged functions like postMessage() can't be invoked by 3P JS
+// and (2) we don't pollute the global scope with new variables/functions.
+(function(__scope, __postMessage) {
+  let NODE_COUNTER = 0;
+
+  const TO_SANITIZE = ['addedNodes', 'removedNodes', 'nextSibling', 'previousSibling', 'target'];
+
+  // TODO(willchou): Replace this with something more generic.
+  const PROP_BLACKLIST = ['children', 'parentNode', '__handlers', '_component', '_componentConstructor'];
+
+  const NODES = new Map();
+
+  function getNode(node) {
+    let id;
+    if (node && typeof node === 'object') {
+      id = node.__id;
+    }
+    if (typeof node === 'string') {
+      id = node;
+    }
+    if (!id) {
+      return null;
+    }
+    if (node.nodeName === 'BODY') {
+      return document.body;
+    }
+    const n = NODES.get(id);
+    return n;
+  }
+
+  function handleEvent(event) {
+    let target = getNode(event.target);
+    if (target) {
+      // Update worker DOM with user changes to <input> etc.
+      if ('__value' in event) {
+        target.value = event.__value;
+      }
+      event.target = target;
+      event.bubbles = true;
+      target.dispatchEvent(event);
+    }
+  }
+
+  function sanitize(obj) {
+    if (!obj || typeof obj !== 'object') {
+      return obj;
+    }
+
+    if (Array.isArray(obj)) {
+      return obj.map(sanitize);
+    }
+
+    if (obj instanceof __scope.document.defaultView.Node) {
+      let id = obj.__id;
+      if (!id) {
+        id = obj.__id = String(++NODE_COUNTER);
+      }
+      NODES.set(id, obj);
+    }
+
+    let out = {};
+    for (let i in obj) {
+      if (obj.hasOwnProperty(i) && PROP_BLACKLIST.indexOf(i) < 0) {
+        out[i] = obj[i];
+      }
+    }
+    if (out.childNodes && out.childNodes.length) {
+      out.childNodes = sanitize(out.childNodes);
+    }
+    return out;
+  }
+
+  if (!Flags.USE_SHARED_ARRAY_BUFFER) {
+    const observer = new __scope.MutationObserver((mutations) => {
+      for (let i = mutations.length; i--; ) {
+        let mutation = mutations[i];
+        for (let j = TO_SANITIZE.length; j--; ) {
+          let prop = TO_SANITIZE[j];
+          mutation[prop] = sanitize(mutation[prop]);
+        }
+      }
+      send({type: 'mutate', mutations});
+    });
+    observer.observe(__scope.document, {subtree: true});
+  }
+
+  // For Flags.USE_SHARED_ARRAY_BUFFER.
+  function serializeDom() {
+    if (!sharedArray) {
+      return;
+    }
+    const serialized = sanitize(__scope.document.body);
+    const string = JSON.stringify(serialized);
+    let l = string.length;
+    for (let i = 0; i < l; i++) {
+      Atomics.store(sharedArray, i, string.charCodeAt(i));
+    }
+    // Erase trailing bytes in case DOM has decreased in size.
+    for (let i = string.length; i < sharedArray.length; i++) {
+      if (Atomics.load(sharedArray, i) > 0) {
+        Atomics.store(sharedArray, i, 0);
+      } else {
+        break;
+      }
+    }
+  }
+
+  // For Flags.USE_SHARED_ARRAY_BUFFER.
+  function onInitialRender() {
+    initialRenderComplete = true;
+    serializeDom();
+    __postMessage({type: 'init-render'});
+  };
+
+  function send(message) {
+    const json = JSON.parse(JSON.stringify(message));
+    json.timestamp = self.performance.now();
+    __postMessage(json);
+  }
+
+  let sharedArray;
+
+  addEventListener('message', ({data}) => {
+    switch (data.type) {
+      case 'init':
+        __scope.url = data.url;
+
+        if (Flags.USE_SHARED_ARRAY_BUFFER) {
+          sharedArray = new Uint16Array(data.buffer);
+          // HACK(willchou): Should instead wait until X ms after last DOM mutation.
+          setTimeout(onInitialRender, 200);
+        }
+        break;
+      case 'event':
+        handleEvent(data.event);
+        break;
+    }
+  });
+})(monkeyScope, self.postMessage);
+
+/**
+ * Dereference non-whitelisted globals.
+ */
+
+// This is incomplete -- just grabbed the first ~50 properties on DedicatedGlobalWorkerScope object.
+// TODO(willchou): Complete this list.
 const WHITELISTED_GLOBALS = {
   'Object': true,
   'Function': true,
@@ -94,7 +243,6 @@ const WHITELISTED_GLOBALS = {
   'eval': true,
   'isFinite': true,
   'isNaN': true,
-  'postMessage': true, // TODO(willchou): Remove and privilege this.
 };
 Object.keys(monkeyScope).forEach(monkeyProp => {
   WHITELISTED_GLOBALS[monkeyProp] = true;
@@ -111,143 +259,5 @@ Object.getOwnPropertyNames(self).forEach(prop => {
       // TODO(willchou): Don't try to delete functions from undom.js.
       console.error(e)
     }
-  }
-});
-
-/**
- * Worker communication layer.
- */
-
-let NODE_COUNTER = 0;
-
-const TO_SANITIZE = ['addedNodes', 'removedNodes', 'nextSibling', 'previousSibling', 'target'];
-
-// TODO(willchou): Replace this with something more generic.
-const PROP_BLACKLIST = ['children', 'parentNode', '__handlers', '_component', '_componentConstructor'];
-
-const NODES = new Map();
-
-function getNode(node) {
-  let id;
-  if (node && typeof node === 'object') {
-    id = node.__id;
-  }
-  if (typeof node === 'string') {
-    id = node;
-  }
-  if (!id) {
-    return null;
-  }
-  if (node.nodeName === 'BODY') {
-    return document.body;
-  }
-  const n = NODES.get(id);
-  return n;
-}
-
-function handleEvent(event) {
-  let target = getNode(event.target);
-  if (target) {
-    // Update worker DOM with user changes to <input> etc.
-    if ('__value' in event) {
-      target.value = event.__value;
-    }
-    event.target = target;
-    event.bubbles = true;
-    target.dispatchEvent(event);
-  }
-}
-
-function sanitize(obj) {
-  if (!obj || typeof obj !== 'object') {
-    return obj;
-  }
-
-  if (Array.isArray(obj)) {
-    return obj.map(sanitize);
-  }
-
-  if (obj instanceof monkeyScope.document.defaultView.Node) {
-    let id = obj.__id;
-    if (!id) {
-      id = obj.__id = String(++NODE_COUNTER);
-    }
-    NODES.set(id, obj);
-  }
-
-  let out = {};
-  for (let i in obj) {
-    if (obj.hasOwnProperty(i) && PROP_BLACKLIST.indexOf(i) < 0) {
-      out[i] = obj[i];
-    }
-  }
-  if (out.childNodes && out.childNodes.length) {
-    out.childNodes = sanitize(out.childNodes);
-  }
-  return out;
-}
-
-if (!Flags.USE_SHARED_ARRAY_BUFFER) {
-  const observer = new monkeyScope.MutationObserver((mutations) => {
-    for (let i = mutations.length; i--; ) {
-      let mutation = mutations[i];
-      for (let j = TO_SANITIZE.length; j--; ) {
-        let prop = TO_SANITIZE[j];
-        mutation[prop] = sanitize(mutation[prop]);
-      }
-    }
-    send({type: 'mutate', mutations});
-  });
-  observer.observe(monkeyScope.document, {subtree: true});
-}
-
-function serializeDom() {
-  if (!sharedArray) {
-    return;
-  }
-  const serialized = sanitize(monkeyScope.document.body);
-  const string = JSON.stringify(serialized);
-  let l = string.length;
-  for (let i = 0; i < l; i++) {
-    Atomics.store(sharedArray, i, string.charCodeAt(i));
-  }
-  // Erase trailing bytes in case DOM has decreased in size.
-  for (let i = string.length; i < sharedArray.length; i++) {
-    if (Atomics.load(sharedArray, i) > 0) {
-      Atomics.store(sharedArray, i, 0);
-    } else {
-      break;
-    }
-  }
-}
-
-function onInitialRender() {
-  initialRenderComplete = true;
-  serializeDom();
-  postMessage({type: 'init-render'});
-};
-
-function send(message) {
-  const json = JSON.parse(JSON.stringify(message));
-  json.timestamp = self.performance.now();
-  postMessage(json);
-}
-
-let sharedArray;
-
-addEventListener('message', ({data}) => {
-  switch (data.type) {
-    case 'init':
-      monkeyScope.url = data.url;
-
-      if (Flags.USE_SHARED_ARRAY_BUFFER) {
-        sharedArray = new Uint16Array(data.buffer);
-        // HACK(willchou): Should instead wait until X ms after last DOM mutation.
-        setTimeout(onInitialRender, 200);
-      }
-      break;
-    case 'event':
-      handleEvent(data.event);
-      break;
   }
 });
