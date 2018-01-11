@@ -49,7 +49,6 @@ Promise.all([
       globalEscapesCheck,
       monkeyGlobal,
       classGlobalsCheck,
-      'debugger;',
       app,
     '}).call(monkeyScope);',
   ].join('\n');

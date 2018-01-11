@@ -249,8 +249,6 @@ Object.keys(monkeyScope).forEach(monkeyProp => {
   WHITELISTED_GLOBALS[monkeyProp] = true;
 });
 
-debugger;
-
 // Delete non-whitelisted properties from global scope.
 (function() {
   function deleteUnsafe(object, property) {
