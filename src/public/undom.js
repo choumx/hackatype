@@ -370,15 +370,6 @@ function undom() {
     record.target = target.__id || target; // Use __id if available.
     record.type = type;
 
-    // if (Flags.USE_SHARED_ARRAY_BUFFER) {
-    //   if (initialRenderComplete) {
-    //     target.dirty = true;
-    //     serializeDom();
-    //     postMessage({type: "dom-update"});
-    //   }
-    //   return;
-    // }
-
     for (let i = observers.length; i--; ) {
       let ob = observers[i];
       let match = target === ob._target;

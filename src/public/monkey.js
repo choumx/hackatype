@@ -139,29 +139,9 @@ if (!Flags.USE_SHARED_ARRAY_BUFFER) {
   observer.observe(monkeyScope.document, {subtree: true});
 }
 
-// function serializeDom() {
-//   if (!sharedArray) {
-//     return;
-//   }
-//   const serialized = sanitize(monkeyScope.document.body);
-//   const string = JSON.stringify(serialized);
-//   let l = string.length;
-//   for (let i = 0; i < l; i++) {
-//     Atomics.store(sharedArray, i, string.charCodeAt(i));
-//   }
-//   // Erase trailing bytes in case DOM has decreased in size.
-//   for (let i = string.length; i < sharedArray.length; i++) {
-//     if (Atomics.load(sharedArray, i) > 0) {
-//       Atomics.store(sharedArray, i, 0);
-//     } else {
-//       break;
-//     }
-//   }
-// }
 
 function onInitialRender() {
   initialRenderComplete = true;
-  // serializeDom();
   postMessage({type: "init-render"});
 }
 
@@ -177,11 +157,6 @@ addEventListener("message", ({data}) => {
   switch (data.type) {
     case "init":
       url = data.url;
-      // sharedArray = new Uint16Array(data.buffer);
-      // if (Flags.USE_SHARED_ARRAY_BUFFER) {
-      //   // HACK(willchou): Should instead wait until X ms after last DOM mutation.
-      //   setTimeout(onInitialRender, 200);
-      // }
       break;
     case "event":
       handleEvent(data.event);
