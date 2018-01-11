@@ -9,13 +9,6 @@ const Flags = {
  * util.js
  */
 
-function assign(obj, props) {
-  for (let i in props) {
-    // eslint-disable-line guard-for-in
-    obj[i] = props[i];
-  }
-}
-
 function toLower(str) {
   return String(str).toLowerCase();
 }
@@ -65,8 +58,8 @@ let initialRenderComplete = false;
  *  @returns {Document} document
  */
 function undom() {
-  let observers = [],
-    pendingMutations = false;
+  let observers = [];
+  let pendingMutations = false;
 
   /**
    * Node.
@@ -103,8 +96,9 @@ function undom() {
     }
     insertBefore(child, ref) {
       child.remove();
-      let i = splice(this.childNodes, ref, child),
-        ref2;
+
+      let i = splice(this.childNodes, ref, child);
+      let ref2;
       if (!ref) {
         this.appendChild(child);
       } else {
@@ -376,14 +370,14 @@ function undom() {
     record.target = target.__id || target; // Use __id if available.
     record.type = type;
 
-    if (Flags.USE_SHARED_ARRAY_BUFFER) {
-      if (initialRenderComplete) {
-        target.dirty = true;
-        serializeDom();
-        postMessage({type: "dom-update"});
-      }
-      return;
-    }
+    // if (Flags.USE_SHARED_ARRAY_BUFFER) {
+    //   if (initialRenderComplete) {
+    //     target.dirty = true;
+    //     serializeDom();
+    //     postMessage({type: "dom-update"});
+    //   }
+    //   return;
+    // }
 
     for (let i = observers.length; i--; ) {
       let ob = observers[i];
@@ -459,9 +453,8 @@ function undom() {
 
   function createDocument() {
     let document = new Document();
-    assign(
-      document,
-      (document.defaultView = {
+    document = Object.assign(document, {
+      defaultView: {
         document,
         MutationObserver,
         Document,
@@ -470,14 +463,15 @@ function undom() {
         Element,
         SVGElement,
         Event,
-      })
-    );
-    assign(document, {
+      }
+    });
+    document = Object.assign(document, {
       documentElement: document,
       createElement,
       createElementNS,
       createTextNode,
     });
+
     document.appendChild((document.body = createElement("body")));
     return document;
   }

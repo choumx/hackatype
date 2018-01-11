@@ -168,7 +168,7 @@ var ENV =
         if (!keepIdentity && oldData && oldData[i]) {
           row.lastSample = oldData[i].lastSample;
         }
-        if (!row.lastSample || Math.random() < ENV.mutations()) {
+        if (!row.lastSample || Math.random() < mutationsValue) {
           counter = counter + 1;
           if (!keepIdentity) {
             row.lastSample = null;
@@ -189,13 +189,8 @@ var ENV =
     var mutationsValue = 0.5;
 
     function mutations(value) {
-      if (value) {
-        mutationsValue = value;
-        // document.querySelector('#ratioval').innerHTML = 'mutations : ' + (mutationsValue * 100).toFixed(0) + '%';
-        return mutationsValue;
-      } else {
-        return mutationsValue;
-      }
+      console.log(`set new mutations ${value}`);
+      mutationsValue = value;
     }
 
     // var body = document.querySelector('body');
@@ -220,7 +215,7 @@ var ENV =
       generateData: getData,
       rows: 50,
       timeout: 1000,
-      mutations: mutations,
+      mutations,
     };
   })();
 
@@ -310,6 +305,7 @@ export class DBMon extends Component {
   handleSliderChange = e => {
     const mutations = e.target.value/100;
     
+    console.log(`new mutations, ${mutations}`);
     ENV.mutations(mutations);
     this.setState({
       mutations
@@ -319,9 +315,9 @@ export class DBMon extends Component {
   render(_, state) {
     return (
       <div>
-        <div style={'display:flex'}>
-          mutations: {(state.mutations * 100).toFixed(0)}
-          <input type="range" style={'margin-bottom: 10px; margin-top: 5px'} onchange={this.handleSliderChange}></input>
+        <div id="mutations">
+          <label id="ratioval">mutations: {(state.mutations * 100).toFixed(0)}%</label>
+          <input type="range" onchange={this.handleSliderChange}></input>
         </div>
         <table class="table table-striped latest-data">
           <Databases />

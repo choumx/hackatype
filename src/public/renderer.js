@@ -235,13 +235,14 @@ export default ({worker}) => {
         continue;
       }
 
+      // TODO: KB – This is exceptionally slow.
       // if the element is offscreen, skip any text or attribute changes:
-      if (m.type === "characterData" || m.type === "attributes") {
-        let target = getNode(m.target);
-        if (target && !isElementInViewport(target)) {
-          continue;
-        }
-      }
+      // if (m.type === "characterData" || m.type === "attributes") {
+      //   let target = getNode(m.target);
+      //   if (target && !isElementInViewport(target)) {
+      //     continue;
+      //   }
+      // }
 
       // remove mutation from the queue and apply it:
       const mutation = MUTATION_QUEUE.splice(i--, 1)[0];
