@@ -115,45 +115,21 @@ for (let i in undomWindow) {
     return out;
   }
 
-  if (!Flags.USE_SHARED_ARRAY_BUFFER) {
-    const observer = new __scope.MutationObserver((mutations) => {
-      for (let i = mutations.length; i--; ) {
-        let mutation = mutations[i];
-        for (let j = TO_SANITIZE.length; j--; ) {
-          let prop = TO_SANITIZE[j];
-          mutation[prop] = sanitize(mutation[prop]);
-        }
-      }
-      send({type: 'mutate', mutations});
-    });
-    observer.observe(__scope.document, {subtree: true});
-  }
-
-  // For Flags.USE_SHARED_ARRAY_BUFFER.
-  function serializeDom() {
-    if (!sharedArray) {
-      return;
-    }
-    const serialized = sanitize(__scope.document.body);
-    const string = JSON.stringify(serialized);
-    let l = string.length;
-    for (let i = 0; i < l; i++) {
-      Atomics.store(sharedArray, i, string.charCodeAt(i));
-    }
-    // Erase trailing bytes in case DOM has decreased in size.
-    for (let i = string.length; i < sharedArray.length; i++) {
-      if (Atomics.load(sharedArray, i) > 0) {
-        Atomics.store(sharedArray, i, 0);
-      } else {
-        break;
+  const observer = new __scope.MutationObserver((mutations) => {
+    for (let i = mutations.length; i--; ) {
+      let mutation = mutations[i];
+      for (let j = TO_SANITIZE.length; j--; ) {
+        let prop = TO_SANITIZE[j];
+        mutation[prop] = sanitize(mutation[prop]);
       }
     }
-  }
+    send({type: 'mutate', mutations});
+  });
+  observer.observe(__scope.document, {subtree: true});
 
   // For Flags.USE_SHARED_ARRAY_BUFFER.
   function onInitialRender() {
     initialRenderComplete = true;
-    serializeDom();
     __postMessage({type: 'init-render'});
   };
 
@@ -163,18 +139,10 @@ for (let i in undomWindow) {
     __postMessage(json);
   }
 
-  let sharedArray;
-
   addEventListener('message', ({data}) => {
     switch (data.type) {
       case 'init':
         __scope.url = data.url;
-
-        if (Flags.USE_SHARED_ARRAY_BUFFER) {
-          sharedArray = new Uint16Array(data.buffer);
-          // HACK(willchou): Should instead wait until X ms after last DOM mutation.
-          setTimeout(onInitialRender, 200);
-        }
         break;
       case 'event':
         handleEvent(data.event);
@@ -244,6 +212,8 @@ const WHITELISTED_GLOBALS = {
   'isNaN': true,
   // Custom additions.
   'performance': true,
+  'setTimeout': true,
+  'setInterval': true,
 };
 Object.keys(monkeyScope).forEach(monkeyProp => {
   WHITELISTED_GLOBALS[monkeyProp] = true;

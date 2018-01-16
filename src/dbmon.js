@@ -1,21 +1,25 @@
-import {h, render, Component} from 'preact';
+import {h, render, Component} from "preact";
 
-var ENV = ENV || (function() {
-
+var ENV =
+  ENV ||
+  (function() {
     var first = true;
     var counter = 0;
     var data;
     var _base;
-    (_base = String.prototype).lpad || (_base.lpad = function(padding, toLength) {
-      return padding.repeat((toLength - this.length) / padding.length).concat(this);
-    });
+    (_base = String.prototype).lpad ||
+      (_base.lpad = function(padding, toLength) {
+        return padding
+          .repeat((toLength - this.length) / padding.length)
+          .concat(this);
+      });
 
     function formatElapsed(value) {
       var str = parseFloat(value).toFixed(2);
       if (value > 60) {
         minutes = Math.floor(value / 60);
-        comps = (value % 60).toFixed(2).split('.');
-        seconds = comps[0].lpad('0', 2);
+        comps = (value % 60).toFixed(2).split(".");
+        seconds = comps[0].lpad("0", 2);
         ms = comps[1];
         str = minutes + ":" + seconds + "." + ms;
       }
@@ -23,15 +27,13 @@ var ENV = ENV || (function() {
     }
 
     function getElapsedClassName(elapsed) {
-      var className = 'Query elapsed';
+      var className = "Query elapsed";
       if (elapsed >= 10.0) {
-        className += ' warn_long';
-      }
-      else if (elapsed >= 1.0) {
-        className += ' warn';
-      }
-      else {
-        className += ' short';
+        className += " warn_long";
+      } else if (elapsed >= 1.0) {
+        className += " warn";
+      } else {
+        className += " short";
       }
       return className;
     }
@@ -40,11 +42,9 @@ var ENV = ENV || (function() {
       var countClassName = "label";
       if (queries >= 20) {
         countClassName += " label-important";
-      }
-      else if (queries >= 10) {
+      } else if (queries >= 10) {
         countClassName += " label-warning";
-      }
-      else {
+      } else {
         countClassName += " label-success";
       }
       return countClassName;
@@ -80,13 +80,13 @@ var ENV = ENV || (function() {
         return {
           query: "***",
           formatElapsed: "",
-          elapsedClassName: ""
+          elapsedClassName: "",
         };
       }
     }
 
     function generateRow(object, keepIdentity, counter) {
-      var nbQueries = Math.floor((Math.random() * 10) + 1);
+      var nbQueries = Math.floor(Math.random() * 10 + 1);
       if (!object) {
         object = {};
       }
@@ -136,18 +136,30 @@ var ENV = ENV || (function() {
 
     function getData(keepIdentity) {
       var oldData = data;
-      if (!keepIdentity) { // reset for each tick when !keepIdentity
+      if (!keepIdentity) {
+        // reset for each tick when !keepIdentity
         data = [];
         for (var i = 1; i <= ENV.rows; i++) {
-          data.push({ dbname: 'cluster' + i, query: "", formatElapsed: "", elapsedClassName: "" });
-          data.push({ dbname: 'cluster' + i + ' slave', query: "", formatElapsed: "", elapsedClassName: "" });
+          data.push({
+            dbname: "cluster" + i,
+            query: "",
+            formatElapsed: "",
+            elapsedClassName: "",
+          });
+          data.push({
+            dbname: "cluster" + i + " slave",
+            query: "",
+            formatElapsed: "",
+            elapsedClassName: "",
+          });
         }
       }
-      if (!data) { // first init when keepIdentity
+      if (!data) {
+        // first init when keepIdentity
         data = [];
         for (var i = 1; i <= ENV.rows; i++) {
-          data.push({ dbname: 'cluster' + i });
-          data.push({ dbname: 'cluster' + i + ' slave' });
+          data.push({dbname: "cluster" + i});
+          data.push({dbname: "cluster" + i + " slave"});
         }
         oldData = data;
       }
@@ -156,7 +168,7 @@ var ENV = ENV || (function() {
         if (!keepIdentity && oldData && oldData[i]) {
           row.lastSample = oldData[i].lastSample;
         }
-        if (!row.lastSample || Math.random() < ENV.mutations()) {
+        if (!row.lastSample || Math.random() < mutationsValue) {
           counter = counter + 1;
           if (!keepIdentity) {
             row.lastSample = null;
@@ -170,20 +182,15 @@ var ENV = ENV || (function() {
       return {
         toArray: function() {
           return data;
-        }
+        },
       };
     }
 
     var mutationsValue = 0.5;
 
     function mutations(value) {
-      if (value) {
-        mutationsValue = value;
-        // document.querySelector('#ratioval').innerHTML = 'mutations : ' + (mutationsValue * 100).toFixed(0) + '%';
-        return mutationsValue;
-      } else {
-        return mutationsValue;
-      }
+      console.log(`set new mutations ${value}`);
+      mutationsValue = value;
     }
 
     // var body = document.querySelector('body');
@@ -208,7 +215,7 @@ var ENV = ENV || (function() {
       generateData: getData,
       rows: 50,
       timeout: 1000,
-      mutations: mutations
+      mutations,
     };
   })();
 
@@ -219,13 +226,13 @@ class Query extends Component {
     if (nextProps.query !== this.props.query) return true;
     return false;
   }
-  render() {
+  render(props) {
     return (
-      <td className={ "Query " + this.props.elapsedClassName}>
-        {this.props.formatElapsed}
-        <div className="popover left">
-          <div className="popover-content">{this.props.query}</div>
-          <div className="arrow"/>
+      <td class={`Query ${props.elapsedClassName}`}>
+        {props.formatElapsed}
+        <div class="popover left">
+          <div class="popover-content">{props.query}</div>
+          <div class="arrow" />
         </div>
       </td>
     );
@@ -234,70 +241,127 @@ class Query extends Component {
 
 class Database extends Component {
   shouldComponentUpdate(nextProps, nextState) {
-    if (nextProps.lastMutationId === this.props.lastMutationId) return false;
-    return true;
+    return nextProps.lastMutationId !== this.props.lastMutationId;
   }
-  render() {
-    var lastSample = this.props.lastSample;
+
+  render({lastSample, dbname}) {
     return (
-      <tr key={this.props.dbname}>
-        <td className="dbname">
-          {this.props.dbname}
-        </td>
-        <td className="query-count">
-          <span className={this.props.lastSample.countClassName}>
-            {this.props.lastSample.nbQueries}
+      <tr key={dbname}>
+        <td class="dbname">{dbname}</td>
+        <td class="query-count">
+          <span class={lastSample.countClassName}>
+            {lastSample.nbQueries}
           </span>
         </td>
-        {this.props.lastSample.topFiveQueries.map(function(query, index) {
-            return <Query key={index}
-              query={query.query}
-              elapsed={query.elapsed}
-              formatElapsed={query.formatElapsed}
-              elapsedClassName={query.elapsedClassName} />
-          })}
+        {lastSample.topFiveQueries.map((query, index) => (
+          <Query
+            key={index}
+            query={query.query}
+            elapsed={query.elapsed}
+            formatElapsed={query.formatElapsed}
+            elapsedClassName={query.elapsedClassName}
+          />
+        ))}
       </tr>
     );
   }
 }
 
-export class DBMon extends Component {
-  constructor(props) {
-    super(props);
+class Databases extends Component {
+  state = {databases: []};
 
-    this.state = {databases: []};
-  }
-
-  loadSamples() {
+  loadSamples = _ => {
     this.setState({
-      databases: ENV.generateData(true).toArray()
+      databases: ENV.generateData(true).toArray(),
     });
     // Monitoring.renderRate.ping();
-    setTimeout(this.loadSamples.bind(this), ENV.timeout);
+    setTimeout(this.loadSamples, ENV.timeout);
   }
 
   componentDidMount() {
     this.loadSamples();
   }
 
-  render() {
-    var databases = this.state.databases.map(function(database) {
-      return <Database
-                key={database.dbname}
-                lastMutationId={database.lastMutationId}
-                dbname={database.dbname}
-                samples={database.samples}
-                lastSample={database.lastSample} />
-    });
+  render(_, state) {
+    return (
+      <tbody>
+        {state.databases.map(database => (
+          <Database
+            key={database.dbname}
+            lastMutationId={database.lastMutationId}
+            dbname={database.dbname}
+            samples={database.samples}
+            lastSample={database.lastSample}
+          />
+        ))}
+      </tbody>
+    );
+  }
+}
 
+export class DBMon extends Component {
+  state = {mutations: 0.5}
+  
+  handleSliderChange = e => {
+    const mutations = e.target.value/100;
+    
+    console.log(`new mutations, ${mutations}`);
+    ENV.mutations(mutations);
+    this.setState({
+      mutations
+    });
+  }
+
+  render(_, state) {
     return (
       <div>
-        <table className="table table-striped latest-data">
-          <tbody>
-            {databases}
-          </tbody>
+        <div id="mutations">
+          <label id="ratioval">mutations: {(state.mutations * 100).toFixed(0)}%</label>
+          <input type="range" onchange={this.handleSliderChange}></input>
+        </div>
+        <table class="table table-striped latest-data">
+          <Databases />
         </table>
       </div>
     );
   }
 }
+
+// export class DBMon extends Component {
+//   state = {databases: []};
+
+//   loadSamples = _ => {
+//     this.setState({
+//       databases: ENV.generateData(true).toArray(),
+//     });
+//     // Monitoring.renderRate.ping();
+//     setTimeout(this.loadSamples, ENV.timeout);
+//   }
+
+//   componentDidMount() {
+//     this.loadSamples();
+//   }
+
+//   render(_, state) {
+//     return (
+//       <div>
+//         <div style={'display:flex'}>
+
+//         </div>
+//         <table class="table table-striped latest-data">
+//           <tbody>
+//             {state.databases.map(database => (
+//               <Database
+//                 key={database.dbname}
+//                 lastMutationId={database.lastMutationId}
+//                 dbname={database.dbname}
+//                 samples={database.samples}
+//                 lastSample={database.lastSample}
+//               />
+//             ))}
+//           </tbody>
+//         </table>
+//       </div>
+//     );
+//   }
+// }

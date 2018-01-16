@@ -2,7 +2,6 @@
 // on main page (renderer.js) and worker (undom.js).
 const Flags = {
   REQUIRE_GESTURE_TO_MUTATE: false,
-  USE_SHARED_ARRAY_BUFFER: false,
 };
 
 /**
@@ -320,27 +319,6 @@ export default ({worker}) => {
     });
   }
 
-  function deserializeDom() {
-    let domString = '';
-    for (let i = 0, l = sharedArray.length; i < l; i++) {
-      const b = Atomics.load(sharedArray, i);
-      if (b > 0) {
-        const c = String.fromCharCode(b);
-        domString += c;
-      } else {
-        break;
-      }
-    }
-    return JSON.parse(domString);
-  }
-
-  let buffer = null;
-  let sharedArray = null;
-  if (Flags.USE_SHARED_ARRAY_BUFFER) {
-    buffer = new SharedArrayBuffer(Uint16Array.BYTES_PER_ELEMENT * 1000);
-    sharedArray = new Uint16Array(buffer);
-  }
-
   let domSkeleton = null;
 
   worker.onmessage = ({data}) => {
@@ -353,11 +331,6 @@ export default ({worker}) => {
 
     switch (data.type) {
       case 'init-render':
-        console.assert(Flags.USE_SHARED_ARRAY_BUFFER);
-        domSkeleton = deserializeDom();
-        console.assert(domSkeleton.nodeName == 'BODY');
-        const node = createNode(domSkeleton);
-        document.body.appendChild(node);
         break;
 
       case 'dom-update':

@@ -14,7 +14,7 @@
         font-size: 2em;
       } */
     </style>
-    <!-- <link rel="stylesheet" type="text/css" href="dbmon.css"> -->
+    <link rel="stylesheet" type="text/css" href="dbmon.css">
 
     <!--
     Set CSP to prevent unsafe-eval.
@@ -33,7 +33,9 @@
 
     <div id="root">
       <!-- AOT render that will be hydrated during init. -->
-      <div amp-aot><h3>TODO</h3><ul></ul><input value="<Add TODO>" /><button>Add #1</button></div>
+      <!-- <div amp-aot><h3>TODO</h3><ul></ul><input value="<Add TODO>" /><button>Add #1</button></div> -->
+      <!-- <div amp-aot>Seconds: 0</div> -->
+      <div amp-aot><div id="mutations"><label id="ratioval">mutations: 50%</label><input type="range"></input></div><table class="table table-striped latest-data"><tbody></tbody></table></div>
     </div>
   </body>
 </html>

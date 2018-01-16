@@ -5,7 +5,6 @@
 // on main page (renderer.js) and worker (undom.js).
 const Flags = {
   REQUIRE_GESTURE_TO_MUTATE: false,
-  USE_SHARED_ARRAY_BUFFER: false,
 };
 
 let initialRenderComplete = false;
