@@ -151,8 +151,6 @@ function send(message) {
   postMessage(json);
 }
 
-let sharedArray;
-
 addEventListener("message", ({data}) => {
   switch (data.type) {
     case "init":

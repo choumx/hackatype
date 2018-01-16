@@ -338,23 +338,6 @@ export default ({worker}) => {
     });
   }
 
-  function deserializeDom() {
-    let domString = "";
-    for (let i = 0, l = sharedArray.length; i < l; i++) {
-      const b = Atomics.load(sharedArray, i);
-      if (b > 0) {
-        const c = String.fromCharCode(b);
-        domString += c;
-      } else {
-        break;
-      }
-    }
-    return JSON.parse(domString);
-  }
-
-  const buffer = new SharedArrayBuffer(Uint16Array.BYTES_PER_ELEMENT * 1000);
-  const sharedArray = new Uint16Array(buffer);
-
   let domSkeleton = null;
 
   worker.onmessage = ({data}) => {
@@ -368,10 +351,6 @@ export default ({worker}) => {
     switch (data.type) {
       case "init-render":
         console.assert(Flags.USE_SHARED_ARRAY_BUFFER);
-        domSkeleton = deserializeDom();
-        console.assert(domSkeleton.nodeName == "BODY");
-        const node = createNode(domSkeleton);
-        document.body.appendChild(node);
         break;
 
       case "dom-update":
@@ -409,6 +388,5 @@ export default ({worker}) => {
   postToWorker({
     type: "init",
     location: location.href,
-    buffer,
   });
 };
