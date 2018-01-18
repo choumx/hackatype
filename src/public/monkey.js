@@ -115,15 +115,31 @@ for (let i in undomWindow) {
     return out;
   }
 
-  const observer = new __scope.MutationObserver((mutations) => {
-    for (let i = mutations.length; i--; ) {
-      let mutation = mutations[i];
-      for (let j = TO_SANITIZE.length; j--; ) {
-        let prop = TO_SANITIZE[j];
+  let hydrated = false;
+  const observer = new __scope.MutationObserver(mutations => {
+    for (let mutation of mutations) {
+      // mutation.timestamp = performance.now();
+      // Sanitize mutations. 
+      // Let's move this to a fork of undom.
+      // Sanitize during creation – not looping over mutations after they've already been created.
+
+      for (let prop of TO_SANITIZE) {
         mutation[prop] = sanitize(mutation[prop]);
       }
     }
-    send({type: 'mutate', mutations});
+    // for (let i = mutations.length; i--; ) {
+    //   let mutation = mutations[i];
+    //   for (let j = TO_SANITIZE.length; j--; ) {
+    //     let prop = TO_SANITIZE[j];
+    //     mutation[prop] = sanitize(mutation[prop]);
+    //   }
+    // }
+    if (hydrated == true) {
+      send({type: 'mutate', mutations});
+    } else {
+      send({type: 'hydrate', mutations});
+      hydrated = true;
+    }
   });
   observer.observe(__scope.document, {subtree: true});
 
@@ -134,9 +150,7 @@ for (let i in undomWindow) {
   };
 
   function send(message) {
-    const json = JSON.parse(JSON.stringify(message));
-    json.timestamp = performance.now();
-    __postMessage(json);
+    __postMessage({...JSON.parse(JSON.stringify(message)), timestamp: performance.now()});
   }
 
   addEventListener('message', ({data}) => {

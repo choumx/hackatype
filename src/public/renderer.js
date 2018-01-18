@@ -36,7 +36,7 @@ export default ({worker}) => {
   });
 
   // Allow mutations up to 1s after user gesture.
-  const GESTURE_TO_MUTATION_THRESHOLD = Flags.REQUIRE_GESTURE_TO_MUTATE ? 1000 : Infinity;
+  const GESTURE_TO_MUTATION_THRESHOLD = Flags.REQUIRE_GESTURE_TO_MUTATE ? 5000 : Infinity;
   let timeOfLastUserGesture = Date.now();
 
   let touchStart;
@@ -152,6 +152,14 @@ export default ({worker}) => {
         }
       }
       if (addedNodes) {
+        // for (let addedNode of addedNodes) {
+        //   let newNode = getNode(addedNode);
+        //   if (!newNode) {
+        //     console.log(`createNode`);
+        //     newNode = createNode(addedNode);
+        //   }
+        //   parent.insertBefore(newNode, nextSibling && getNode(nextSibling) || null);
+        // }
         for (let i = 0; i < addedNodes.length; i++) {
           let newNode = getNode(addedNodes[i]);
           if (!newNode) {
@@ -196,48 +204,40 @@ export default ({worker}) => {
 
   // Attempt to flush & process as many MutationRecords as possible from the queue
   function processMutations(deadline) {
-    clearTimeout(mutationTimer);
+    // clearTimeout(mutationTimer);
 
+    console.log('processMutations', deadline, MUTATION_QUEUE.length);
     const start = Date.now();
     const isDeadline = deadline && deadline.timeRemaining;
-    let timedOut = false;
+    const mutationLenth = MUTATION_QUEUE.length;
+    let removed = 0;
 
-    for (let i = 0; i < MUTATION_QUEUE.length; i++) {
-      if (isDeadline
-          ? deadline.timeRemaining() <= 0
-          : (Date.now() - start) > 1) {
-        timedOut = true;
+    for (let mutation of MUTATION_QUEUE) {
+      if (isDeadline && deadline.timeRemaining() <= 0) {
+        console.warn('RequestIdleCallback timeRemaining <= 0', removed);
+        break;
+      } else if (!isDeadline && (Date.now() - start) > 1) {
+        break;
+      } else if (mutation.timestamp - timeOfLastUserGesture > GESTURE_TO_MUTATION_THRESHOLD) {
+        console.warn(`Mutation latency exceeded. Queued until next gesture: `, m);
         break;
       }
-      const m = MUTATION_QUEUE[i];
 
-      const latency = m.timestamp - timeOfLastUserGesture;
-      if (latency > GESTURE_TO_MUTATION_THRESHOLD) {
-        console.warn(`Mutation latency exceeded (${latency}). Queued until next gesture: `, m);
-        continue;
-      }
-
-      // if the element is offscreen, skip any text or attribute changes:
-      if (m.type === 'characterData' || m.type === 'attributes') {
-        let target = getNode(m.target);
-        if (target && !isElementInViewport(target)) {
-          continue;
-        }
-      }
-
-      // remove mutation from the queue and apply it:
-      const mutation = MUTATION_QUEUE.splice(i--, 1)[0];
       MUTATIONS[mutation.type](mutation);
+      removed++;
     }
 
-    if (timedOut && MUTATION_QUEUE.length > 0) {
+    MUTATION_QUEUE.splice(0, removed);
+    console.log(`removed: ${removed}`);
+
+    if (removed < mutationLenth) {
       processMutationsSoon();
     }
   }
 
   function processMutationsSoon() {
-    clearTimeout(mutationTimer);
-    mutationTimer = setTimeout(processMutations, 100);
+    // clearTimeout(mutationTimer);
+    // mutationTimer = setTimeout(processMutations, 100);
     requestIdleCallback(processMutations);
   }
 
@@ -327,7 +327,7 @@ export default ({worker}) => {
       metrics.textContent = latency;
     }
 
-    console.info(`Received "${data.type}" from worker:`, data);
+    // console.info(`Received "${data.type}" from worker:`, data);
 
     switch (data.type) {
       case 'init-render':
@@ -339,28 +339,34 @@ export default ({worker}) => {
         repaintDirty(domSkeleton);
         break;
 
+      case 'hydrate':
+        if (!aotRoot) {
+          console.warn('AOT root missing.');
+          return;
+        }
+
+        for (let mutation of data.mutations) {
+          // Check if mutation record looks like the root containing `amp-aot` attr.
+          // If so, set __id on all matching DOM elements.
+          console.info('Hydrating AOT root: ', aotRoot);
+          console.assert(mutation.type == 'childList' && mutation.addedNodes);
+          mutation.addedNodes.forEach(n => hydrate(aotRoot, n));
+        }
+        break;
+
       case 'mutate':
-        const now = Date.now();
+        MUTATION_QUEUE = MUTATION_QUEUE.concat(data.mutations);
+        processMutationsSoon();
+        // const now = Date.now();
 
-        data.mutations.forEach(mutation => {
-          mutation.timestamp = now;
 
-          // TODO(willchou): Improve heuristic for identifying initial render.
-          if (initialRender && aotRoot) {
-            // Check if mutation record looks like the root containing `amp-aot` attr.
-            // If so, set __id on all matching DOM elements.
-            console.info('Hydrating AOT root: ', aotRoot);
-            console.assert(mutation.type == 'childList' && mutation.addedNodes);
-            mutation.addedNodes.forEach(n => hydrate(aotRoot, n));
-            return;
-          } else if (initialRender) {
-            console.warn('No AOT root found!');
-          }
 
-          enqueueMutation(mutation);
-        });
+        // // data.mutations.forEach(mutation => {
+        // for (let mutation of data.mutations) {
 
-        initialRender = false;
+        //   enqueueMutation(mutation);
+        // }
+  
         break;
     }
   };
@@ -368,6 +374,5 @@ export default ({worker}) => {
   postToWorker({
     type: 'init',
     location: location.href,
-    buffer,
   });
 };

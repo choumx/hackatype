@@ -189,32 +189,14 @@ var ENV =
     var mutationsValue = 0.5;
 
     function mutations(value) {
-      console.log(`set new mutations ${value}`);
+      console.log(`set new mutations, ${value}`);
       mutationsValue = value;
     }
-
-    // var body = document.querySelector('body');
-    // var theFirstChild = body.firstChild;
-
-    // var sliderContainer = document.createElement('div');
-    // sliderContainer.style.cssText = "display: flex";
-    // var slider = document.createElement('input');
-    // var text = document.createElement('label');
-    // text.innerHTML = 'mutations : ' + (mutationsValue * 100).toFixed(0) + '%';
-    // text.id = "ratioval";
-    // slider.setAttribute("type", "range");
-    // slider.style.cssText = 'margin-bottom: 10px; margin-top: 5px';
-    // slider.addEventListener('change', function(e) {
-    //   ENV.mutations(e.target.value / 100);
-    // });
-    // sliderContainer.appendChild(text);
-    // sliderContainer.appendChild(slider);
-    // body.insertBefore(sliderContainer, theFirstChild);
 
     return {
       generateData: getData,
       rows: 50,
-      timeout: 1000,
+      timeout: 0,
       mutations,
     };
   })();
@@ -273,7 +255,7 @@ class Databases extends Component {
   loadSamples = _ => {
     this.setState({
       databases: ENV.generateData(true).toArray(),
-    });
+    }, _ => console.info('setState, databases'));
     // Monitoring.renderRate.ping();
     setTimeout(this.loadSamples, ENV.timeout);
   }
@@ -309,10 +291,11 @@ export class DBMon extends Component {
     ENV.mutations(mutations);
     this.setState({
       mutations
-    });
+    }, _ => console.info('setState, mutations'));
   }
 
   render(_, state) {
+    console.log(state.mutations);
     return (
       <div>
         <div id="mutations">
