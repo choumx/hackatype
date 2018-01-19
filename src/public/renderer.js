@@ -18,6 +18,7 @@ export default ({worker}) => {
   const NODES = new Map();
 
   /** Returns the real DOM Element corresponding to a serialized Element object. */
+  // TODO (KB): Seperate functions for different types.
   function getNode(nodeOrId) {
     if (!nodeOrId) {
       return null;
@@ -111,31 +112,29 @@ export default ({worker}) => {
   *   createNode({ nodeType:1, nodeName:'div', attributes:[{ name:'a', value:'b' }], childNodes:[ ... ] })
    */
   function createNode(skeleton) {
-    let node;
     if (skeleton.nodeType === Node.TEXT_NODE) {
-      node = document.createTextNode(skeleton.data);
-    } else if (skeleton.nodeType === Node.ELEMENT_NODE) {
-      node = document.createElement(skeleton.nodeName);
-      if (skeleton.className) {
-        node.className = skeleton.className;
+      const node = document.createTextNode(skeleton.data);
+      bindNodeToSkeletonId(node, skeleton.__id);
+      return node;
+    }
+    
+    const node = document.createElement(skeleton.nodeName);
+    if (skeleton.className) {
+      node.className = skeleton.className;
+    }
+    if (skeleton.style) {
+      for (let i in skeleton.style) {
+        node.style[i] = skeleton.style[i];
       }
-      if (skeleton.style) {
-        for (let i in skeleton.style) {
-          if (skeleton.style.hasOwnProperty(i)) {
-            node.style[i] = skeleton.style[i];
-          }
-        }
+    }
+    if (skeleton.attributes) {
+      for (let attribute of skeleton.attributes) {
+        node.setAttribute(attribute.name, attribute.value);
       }
-      if (skeleton.attributes) {
-        for (let i = 0; i < skeleton.attributes.length; i++) {
-          const a = skeleton.attributes[i];
-          node.setAttribute(a.name, a.value);
-        }
-      }
-      if (skeleton.childNodes) {
-        for (let i = 0; i < skeleton.childNodes.length; i++) {
-          node.appendChild(createNode(skeleton.childNodes[i]));
-        }
+    }
+    if (skeleton.childNodes) {
+      for (let childNode of skeleton.childNodes) {
+        node.appendChild(createNode(childNode));  
       }
     }
     bindNodeToSkeletonId(node, skeleton.__id);
@@ -144,128 +143,74 @@ export default ({worker}) => {
 
   /** Apply MutationRecord mutations, keyed by type. */
   const MUTATIONS = {
-    childList({target, removedNodes, addedNodes, previousSibling, nextSibling}) {
+    childList({target, removedNodes, addedNodes, nextSibling}) {
       let parent = getNode(target);
       if (removedNodes) {
-        for (let i = removedNodes.length; i--; ) {
+        for (let i = removedNodes.length; i--;) {
           parent.removeChild(getNode(removedNodes[i]));
         }
       }
       if (addedNodes) {
-        // for (let addedNode of addedNodes) {
-        //   let newNode = getNode(addedNode);
-        //   if (!newNode) {
-        //     console.log(`createNode`);
-        //     newNode = createNode(addedNode);
-        //   }
-        //   parent.insertBefore(newNode, nextSibling && getNode(nextSibling) || null);
-        // }
-        for (let i = 0; i < addedNodes.length; i++) {
-          let newNode = getNode(addedNodes[i]);
+        for (let addedNode of addedNodes) {
+          let newNode = getNode(addedNode);
           if (!newNode) {
-            newNode = createNode(addedNodes[i]);
+            newNode = createNode(addedNode);
           }
           parent.insertBefore(newNode, nextSibling && getNode(nextSibling) || null);
         }
       }
     },
-    attributes({target, attributeName, value, oldValue}) {
-      getNode(target).setAttribute(attributeName, value);
+    attributes(mutation) {
+      getNode(mutation.target).setAttribute(mutation.attributeName, mutation.value);
     },
-    characterData({target, value, oldValue}) {
-      getNode(target).nodeValue = value;
+    characterData(mutation) {
+      getNode(mutation.target).nodeValue = mutation.value;
     },
     // Non-standard MutationRecord for property changes.
-    properties({target, propertyName, value, oldValue}) {
-      const node = getNode(target);
-      console.assert(node);
-      node[propertyName] = value;
+    properties(mutation) {
+      const node = getNode(mutation.target);
+      node[mutation.propertyName] = mutation.value;
     },
   };
 
-  let mutationTimer;
   // stores pending DOM changes (MutationRecord objects)
   let MUTATION_QUEUE = [];
 
-  const windowSizeCache = {};
-  // Check if an Element is at least partially visible
-  function isElementInViewport(el, cache = windowSizeCache) {
-    if (el.nodeType === 3) {
-      el = el.parentNode;
+  function processMutationsSync() {
+    let removed = 0;
+    for (let mutation of MUTATION_QUEUE) {
+      MUTATIONS[mutation.type](mutation);
+      removed++;
     }
-    let bbox = el.getBoundingClientRect();
-    return (
-      bbox.bottom >= 0 &&
-      bbox.right >= 0 &&
-      bbox.top <= (cache.height || (cache.height = window.innerHeight)) &&
-      bbox.left <= (cache.width || (cache.width = window.innerWidth))
-    );
+    MUTATION_QUEUE.splice(0, removed); 
   }
 
   // Attempt to flush & process as many MutationRecords as possible from the queue
-  function processMutations(deadline) {
-    // clearTimeout(mutationTimer);
-
-    console.log('processMutations', deadline, MUTATION_QUEUE.length);
-    const start = Date.now();
+  function processMutationsAsync(deadline) {
+    const start = performance.now();
     const isDeadline = deadline && deadline.timeRemaining;
     const mutationLenth = MUTATION_QUEUE.length;
     let removed = 0;
 
     for (let mutation of MUTATION_QUEUE) {
+      MUTATIONS[mutation.type](mutation);
+      removed++;
+
       if (isDeadline && deadline.timeRemaining() <= 0) {
         console.warn('RequestIdleCallback timeRemaining <= 0', removed);
         break;
-      } else if (!isDeadline && (Date.now() - start) > 1) {
+      } else if (!isDeadline && (performance.now() - start) > 1) {
         break;
       } else if (mutation.timestamp - timeOfLastUserGesture > GESTURE_TO_MUTATION_THRESHOLD) {
         console.warn(`Mutation latency exceeded. Queued until next gesture: `, m);
         break;
       }
-
-      MUTATIONS[mutation.type](mutation);
-      removed++;
     }
 
     MUTATION_QUEUE.splice(0, removed);
-    console.log(`removed: ${removed}`);
-
     if (removed < mutationLenth) {
-      processMutationsSoon();
+      requestIdleCallback(processMutationsAsync);
     }
-  }
-
-  function processMutationsSoon() {
-    // clearTimeout(mutationTimer);
-    // mutationTimer = setTimeout(processMutations, 100);
-    requestIdleCallback(processMutations);
-  }
-
-  function enqueueMutation(mutation) {
-    let merged = false;
-
-    // Merge/overwrite characterData & attribute mutations instead of queueing
-    // to avoid extra DOM mutations.
-    // TODO(willchou): Restore this when (target == __id) is supported.
-    // if (mutation.type === 'characterData' || mutation.type === 'attributes') {
-    //   for (let i = MUTATION_QUEUE.length; i--; ) {
-    //     let m = MUTATION_QUEUE[i];
-    //     if (m.type == mutation.type && m.target.__id == mutation.target.__id) {
-    //       if (m.type === 'attributes') {
-    //         MUTATION_QUEUE.splice(i + 1, 0, mutation);
-    //       } else {
-    //         MUTATION_QUEUE[i] = mutation;
-    //       }
-    //       merged = true;
-    //     }
-    //   }
-    // }
-
-    if (!merged) {
-      MUTATION_QUEUE.push(mutation);
-    }
-
-    processMutationsSoon();
   }
 
   /**
@@ -356,17 +301,9 @@ export default ({worker}) => {
 
       case 'mutate':
         MUTATION_QUEUE = MUTATION_QUEUE.concat(data.mutations);
-        processMutationsSoon();
-        // const now = Date.now();
-
-
-
-        // // data.mutations.forEach(mutation => {
-        // for (let mutation of data.mutations) {
-
-        //   enqueueMutation(mutation);
-        // }
-  
+        // if (async) requestIdleCallback(processMutationsAsync);
+        // else setTimeout(processMutations);
+        setTimeout(processMutationsSync);
         break;
     }
   };

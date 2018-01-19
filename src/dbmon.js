@@ -255,7 +255,7 @@ class Databases extends Component {
   loadSamples = _ => {
     this.setState({
       databases: ENV.generateData(true).toArray(),
-    }, _ => console.info('setState, databases'));
+    });
     // Monitoring.renderRate.ping();
     setTimeout(this.loadSamples, ENV.timeout);
   }
@@ -287,15 +287,13 @@ export class DBMon extends Component {
   handleSliderChange = e => {
     const mutations = e.target.value/100;
     
-    console.log(`new mutations, ${mutations}`);
     ENV.mutations(mutations);
     this.setState({
       mutations
-    }, _ => console.info('setState, mutations'));
+    });
   }
 
   render(_, state) {
-    console.log(state.mutations);
     return (
       <div>
         <div id="mutations">
