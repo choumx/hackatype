@@ -68,21 +68,22 @@ export default ({worker}) => {
       metrics.textContent = latency;
     }
 
-    // console.info(`Received "${data.type}" from worker:`, data);
-    if (data.type === 'mutate') {
-      MUTATION_QUEUE = MUTATION_QUEUE.concat(data.mutations);
-      // if (async) requestIdleCallback(processMutationsAsync);
-      // else setTimeout(processMutations);
-      requestAnimationFrame(processMutationsSync);
-    } else if (data.type === 'hydrate') {
-      if (!aotRoot) {
-        console.warn('AOT root missing.');
-        return;
-      }
+    switch(data.type) {
+      case 'mutate':
+        MUTATION_QUEUE = MUTATION_QUEUE.concat(data.mutations);
+        // if (async) requestIdleCallback(processMutationsAsync);
+        // else setTimeout(processMutations);
+        requestAnimationFrame(processMutationsSync);
+        break;
+      case 'hydrate':
+        if (!aotRoot) {
+          console.warn('AOT root missing.');
+          return;
+        }
 
-      hydrate(aotRoot, data.mutations); 
+        hydrate(aotRoot, data.mutations);
+        break;
     }
-    
   };
 
   postToWorker(worker, {
