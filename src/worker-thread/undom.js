@@ -315,17 +315,9 @@ let undom = function() {
   function mutation(target, type, record) {
     record.target = target.__id || target; // Use __id if available.
     record.type = type;
+    record.timestamp = performance.now();
 
-    if (Flags.USE_SHARED_ARRAY_BUFFER) {
-      if (initialRenderComplete) {
-        target.dirty = true;
-        serializeDom();
-        postMessage({type: 'dom-update'});
-      }
-      return;
-    }
-
-    for (let i = observers.length; i--; ) {
+    for (let i = observers.length; i--;) {
       let ob = observers[i];
       let match = target === ob._target;
       if (!match && ob._options.subtree) {
@@ -339,6 +331,7 @@ let undom = function() {
         ob._records.push(record);
         if (!pendingMutations) {
           pendingMutations = true;
+          // flushMutations();
           Promise.resolve().then(flushMutations);
         }
       }
@@ -347,10 +340,9 @@ let undom = function() {
 
   function flushMutations() {
     pendingMutations = false;
-    for (let i = observers.length; i--; ) {
-      let ob = observers[i];
-      if (ob._records.length) {
-        ob.callback(ob.takeRecords());
+    for (const observer of observers) {
+      if (observer._records.length) {
+        observer.callback(observer.takeRecords());
       }
     }
   }
@@ -378,13 +370,8 @@ let undom = function() {
   function createElement(type) {
     const t = String(type).toUpperCase();
     const element = new Element(null, t);
-    if (Flags.USE_SHARED_ARRAY_BUFFER) {
-      return element;
-    } else {
-      // Use proxy so we can observe and forward property changes e.g. HTMLInputElement.value.
-      const proxy = new Proxy(element, ElementProxyHandler);
-      return proxy;
-    }
+    // Use proxy so we can observe and forward property changes e.g. HTMLInputElement.value.
+    return new Proxy(element, ElementProxyHandler);
   }
 
   function createElementNS(ns, type) {

@@ -3,7 +3,7 @@ import ReplacePlugin from 'replace-bundle-webpack-plugin';
 
 module.exports = {
 	entry: {
-		app: './src/app.js',
+		app: './src/worker-thread/app.js',
 		'todomvc-common': 'todomvc-common'
 	},
 	output: {
