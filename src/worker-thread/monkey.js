@@ -143,12 +143,6 @@ for (let i in undomWindow) {
   });
   observer.observe(__scope.document, {subtree: true});
 
-  // For Flags.USE_SHARED_ARRAY_BUFFER.
-  function onInitialRender() {
-    initialRenderComplete = true;
-    __postMessage({type: 'init-render'});
-  };
-
   function send(message) {
     __postMessage({...JSON.parse(JSON.stringify(message)), timestamp: performance.now()});
   }
