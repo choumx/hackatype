@@ -127,13 +127,6 @@ for (let i in undomWindow) {
         mutation[prop] = sanitize(mutation[prop]);
       }
     }
-    // for (let i = mutations.length; i--; ) {
-    //   let mutation = mutations[i];
-    //   for (let j = TO_SANITIZE.length; j--; ) {
-    //     let prop = TO_SANITIZE[j];
-    //     mutation[prop] = sanitize(mutation[prop]);
-    //   }
-    // }
     if (hydrated == true) {
       send({type: 'mutate', mutations});
     } else {
@@ -144,6 +137,7 @@ for (let i in undomWindow) {
   observer.observe(__scope.document, {subtree: true});
 
   function send(message) {
+    // TODO: KB – via @surma, Structural Clone Performance can be improved.
     __postMessage({...JSON.parse(JSON.stringify(message)), timestamp: performance.now()});
   }
 

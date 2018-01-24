@@ -3,17 +3,17 @@ import {getNode, bindNodeId} from './nodes.js';
 export function childList({target, removedNodes, addedNodes, nextSibling}) {
   let parent = getNode(target);
   if (removedNodes) {
-    for (let i = removedNodes.length; i--;) {
-      parent.removeChild(getNode(removedNodes[i]));
+    let iterator = removedNodes.length;
+    for (;iterator--;) {
+      parent.removeChild(getNode(removedNodes[iterator]));
     }
   }
   if (addedNodes) {
-    for (let addedNode of addedNodes) {
-      let newNode = getNode(addedNode);
-      if (!newNode) {
-        newNode = createNode(addedNode);
-      }
-      parent.insertBefore(newNode, nextSibling && getNode(nextSibling) || null);
+    let iterator = 0;
+    let length = addedNodes.length;
+
+    for (; iterator < length; iterator++) {
+      parent.insertBefore(getNode(addedNodes[iterator]) || createNode(addedNodes[iterator]), nextSibling && getNode(nextSibling) || null);
     }
   }
 }
@@ -23,7 +23,7 @@ export function attributes(mutation) {
 }
 
 export function characterData(mutation) {
-  getNode(mutation.target).nodeValue = mutation.value;
+  getNode(mutation.target).textContent = mutation.value;
 }
 
 // Non-standard MutationRecord for property changes.
