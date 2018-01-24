@@ -3,7 +3,6 @@ import {getNode, bindNodeId} from './nodes.js';
 export function childList({target, removedNodes, addedNodes, nextSibling}) {
   let parent = getNode(target);
   if (removedNodes) {
-<<<<<<< HEAD
     let iterator = removedNodes.length;
     for (;iterator--;) {
       parent.removeChild(getNode(removedNodes[iterator]));
@@ -15,19 +14,6 @@ export function childList({target, removedNodes, addedNodes, nextSibling}) {
 
     for (; iterator < length; iterator++) {
       parent.insertBefore(getNode(addedNodes[iterator]) || createNode(addedNodes[iterator]), nextSibling && getNode(nextSibling) || null);
-=======
-    for (let i = removedNodes.length; i--;) {
-      parent.removeChild(getNode(removedNodes[i]));
-    }
-  }
-  if (addedNodes) {
-    for (let addedNode of addedNodes) {
-      let newNode = getNode(addedNode);
-      if (!newNode) {
-        newNode = createNode(addedNode);
-      }
-      parent.insertBefore(newNode, nextSibling && getNode(nextSibling) || null);
->>>>>>> e4849255d576715d1912cd658ec4f94f22188483
     }
   }
 }
@@ -37,11 +23,7 @@ export function attributes(mutation) {
 }
 
 export function characterData(mutation) {
-<<<<<<< HEAD
   getNode(mutation.target).textContent = mutation.value;
-=======
-  getNode(mutation.target).nodeValue = mutation.value;
->>>>>>> e4849255d576715d1912cd658ec4f94f22188483
 }
 
 // Non-standard MutationRecord for property changes.
