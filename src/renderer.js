@@ -21,15 +21,18 @@ export default ({worker}) => {
 
   // stores pending DOM changes (MutationRecord objects)
   let MUTATION_QUEUE = [];
+  let pendingMutations = false;
 
   // Flush all the MutationRecords from the queue.
   function processMutationsSync() {
-    let removed = 0;
-    for (let mutation of MUTATION_QUEUE) {
-      Mutators[mutation.type](mutation);
-      removed++;
+    let iterator = 0;
+    const length = MUTATION_QUEUE.length;
+
+    for (; iterator < length; iterator++) {
+      Mutators[MUTATION_QUEUE[iterator].type](MUTATION_QUEUE[iterator]);
     }
-    MUTATION_QUEUE.splice(0, removed); 
+    MUTATION_QUEUE.splice(0, length);
+    pendingMutations = false;
   }
 
   // Attempt to flush & process as many MutationRecords as possible from the queue
@@ -44,7 +47,7 @@ export default ({worker}) => {
       removed++;
 
       if (isDeadline && deadline.timeRemaining() <= 0) {
-        console.warn('RequestIdleCallback timeRemaining <= 0', removed);
+        // console.warn('RequestIdleCallback timeRemaining <= 0', removed);
         break;
       } else if (!isDeadline && (performance.now() - start) > 1) {
         break;
@@ -57,6 +60,8 @@ export default ({worker}) => {
     MUTATION_QUEUE.splice(0, removed);
     if (removed < mutationLenth) {
       requestIdleCallback(processMutationsAsync);
+    } else {
+      pendingMutations = false;
     }
   }
 
@@ -70,10 +75,19 @@ export default ({worker}) => {
 
     switch(data.type) {
       case 'mutate':
+        // This method appends all mutations to a single array.
+        // These mutations are attempted to be cleared out by the sync flush method. (processMutationsSync)
+        // Alternatively, there is an Async implementation (processMutationsAsync) using rIC to flush the queue.
+
         MUTATION_QUEUE = MUTATION_QUEUE.concat(data.mutations);
-        // if (async) requestIdleCallback(processMutationsAsync);
-        // else setTimeout(processMutations);
-        requestAnimationFrame(processMutationsSync);
+        if (!pendingMutations) {
+          pendingMutations = true;
+          // setTimeout(processMutationsSync)
+          if (MUTATION_QUEUE.length > 0) {
+            requestAnimationFrame(processMutationsSync);
+            // requestIdleCallback(processMutationsAsync);
+          }
+        }
         break;
       case 'hydrate':
         if (!aotRoot) {
