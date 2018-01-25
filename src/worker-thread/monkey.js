@@ -1,3 +1,5 @@
+import fakedom from './undom.js';
+
 /**
  * Monkey-patch WorkerGlobalScope.
  */

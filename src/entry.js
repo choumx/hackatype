@@ -1,10 +1,9 @@
 import renderer from './renderer.js';
 
 Promise.all([
-  fetch('undom.js').then(response => response.text()),
-  fetch('monkey.js').then(response => response.text()),
-  fetch('app.js').then(response => response.text()),
-]).then(([undom, monkey, app]) => {
+  fetch('worker-thread/monkey.js').then(response => response.text()),
+  fetch('worker-thread/app.js').then(response => response.text()),
+]).then(([monkey, app]) => {
   // Checks tricky ways to get the global scope.
   const globalEscapesCheck = `
       (function() {
@@ -43,7 +42,6 @@ Promise.all([
       }`;
 
   const code = [
-    undom,
     monkey,
     '(function() {', // Set `this` to `monkeyScope`.
       globalEscapesCheck,

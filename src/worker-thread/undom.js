@@ -331,7 +331,6 @@ let undom = function() {
         ob._records.push(record);
         if (!pendingMutations) {
           pendingMutations = true;
-          // flushMutations();
           Promise.resolve().then(flushMutations);
         }
       }
