@@ -1,8 +1,8 @@
 import renderer from './renderer.js';
 
 Promise.all([
-  fetch('undom.js').then(response => response.text()),
-  fetch('monkey.js').then(response => response.text()),
+  fetch('worker-thread/undom.js').then(response => response.text()),
+  fetch('worker-thread/monkey.js').then(response => response.text()),
   fetch('app.js').then(response => response.text()),
 ]).then(([undom, monkey, app]) => {
   // Checks tricky ways to get the global scope.
