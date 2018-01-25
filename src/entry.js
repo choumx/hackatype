@@ -1,8 +1,8 @@
-import renderer from './renderer.js';
+import renderer from './main-thread/renderer.js';
 
 Promise.all([
   fetch('worker-thread/monkey.js').then(response => response.text()),
-  fetch('worker-thread/app.js').then(response => response.text()),
+  fetch('author/app.js').then(response => response.text()),
 ]).then(([monkey, app]) => {
   // Checks tricky ways to get the global scope.
   const globalEscapesCheck = `

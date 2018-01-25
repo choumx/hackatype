@@ -1,10 +1,12 @@
 import {undom} from './undom.js';
+import {sanitize} from './sanitize.js';
+import {getNode} from './nodes.js';
+import {send} from './message-to-ui.js';
 
 /**
  * Monkey-patch WorkerGlobalScope.
  */
-
-const monkeyScope = {
+export const monkeyScope = {
   document: undom(),
   history: {
     pushState(a, b, url) {
@@ -39,121 +41,6 @@ for (let i in undomWindow) {
     monkeyScope[i] = undomWindow[i];
   }
 }
-
-/**
- * Worker communication layer.
- */
-
-// Use an IIFE to "store" references to globals that we'll dereference from `self` below.
-// This makes sure that (1) privileged functions like postMessage() can't be invoked by 3P JS
-// and (2) we don't pollute the global scope with new variables/functions.
-(function(__scope, __postMessage) {
-  let NODE_COUNTER = 0;
-
-  const TO_SANITIZE = ['addedNodes', 'removedNodes', 'nextSibling', 'previousSibling', 'target'];
-
-  // TODO(willchou): Replace this with something more generic.
-  const PROP_BLACKLIST = ['children', 'parentNode', '__handlers', '_component', '_componentConstructor'];
-
-  const NODES = new Map();
-
-  function getNode(node) {
-    let id;
-    if (node && typeof node === 'object') {
-      id = node.__id;
-    }
-    if (typeof node === 'string') {
-      id = node;
-    }
-    if (!id) {
-      return null;
-    }
-    if (node.nodeName === 'BODY') {
-      return document.body;
-    }
-    const n = NODES.get(id);
-    return n;
-  }
-
-  function handleEvent(event) {
-    let target = getNode(event.target);
-    if (target) {
-      // Update worker DOM with user changes to <input> etc.
-      if ('__value' in event) {
-        target.value = event.__value;
-      }
-      event.target = target;
-      event.bubbles = true;
-      target.dispatchEvent(event);
-    }
-  }
-
-  function sanitize(obj) {
-    if (!obj || typeof obj !== 'object') {
-      return obj;
-    }
-
-    if (Array.isArray(obj)) {
-      return obj.map(sanitize);
-    }
-
-    if (obj instanceof __scope.document.defaultView.Node) {
-      let id = obj.__id;
-      if (!id) {
-        id = obj.__id = String(++NODE_COUNTER);
-      }
-      NODES.set(id, obj);
-    }
-
-    let out = {};
-    for (let i in obj) {
-      if (obj.hasOwnProperty(i) && PROP_BLACKLIST.indexOf(i) < 0) {
-        out[i] = obj[i];
-      }
-    }
-    if (out.childNodes && out.childNodes.length) {
-      out.childNodes = sanitize(out.childNodes);
-    }
-    return out;
-  }
-
-  let hydrated = false;
-  const observer = new __scope.MutationObserver(mutations => {
-    for (let mutation of mutations) {
-      // mutation.timestamp = performance.now();
-      // Sanitize mutations. 
-      // Let's move this to a fork of undom.
-      // Sanitize during creation – not looping over mutations after they've already been created.
-
-      for (let prop of TO_SANITIZE) {
-        mutation[prop] = sanitize(mutation[prop]);
-      }
-    }
-    if (hydrated == true) {
-      send({type: 'mutate', mutations});
-    } else {
-      send({type: 'hydrate', mutations});
-      hydrated = true;
-    }
-  });
-  observer.observe(__scope.document, {subtree: true});
-
-  function send(message) {
-    // TODO: KB – via @surma, Structural Clone Performance can be improved.
-    __postMessage({...JSON.parse(JSON.stringify(message)), timestamp: performance.now()});
-  }
-
-  addEventListener('message', ({data}) => {
-    switch (data.type) {
-      case 'init':
-        __scope.url = data.url;
-        break;
-      case 'event':
-        handleEvent(data.event);
-        break;
-    }
-  });
-})(monkeyScope, postMessage);
 
 /**
  * Dereference non-whitelisted globals.
@@ -249,3 +136,60 @@ Object.keys(monkeyScope).forEach(monkeyProp => {
     current = Object.getPrototypeOf(current);
   }
 })();
+
+
+/**
+ * Worker communication layer.
+ */
+
+// Use an IIFE to "store" references to globals that we'll dereference from `self` below.
+// This makes sure that (1) privileged functions like postMessage() can't be invoked by 3P JS
+// and (2) we don't pollute the global scope with new variables/functions.
+(function(__scope, __postMessage) {
+  const TO_SANITIZE = ['addedNodes', 'removedNodes', 'nextSibling', 'previousSibling', 'target'];
+
+  function handleEvent(event) {
+    let target = getNode(event.target);
+    if (target) {
+      // Update worker DOM with user changes to <input> etc.
+      if ('__value' in event) {
+        target.value = event.__value;
+      }
+      event.target = target;
+      event.bubbles = true;
+      target.dispatchEvent(event);
+    }
+  }
+
+  let hydrated = false;
+  const observer = new __scope.MutationObserver(mutations => {
+    for (let mutation of mutations) {
+      // mutation.timestamp = performance.now();
+      // Sanitize mutations. 
+      // Let's move this to a fork of undom.
+      // Sanitize during creation – not looping over mutations after they've already been created.
+
+      for (let prop of TO_SANITIZE) {
+        mutation[prop] = sanitize(__scope.document, mutation[prop]);
+      }
+    }
+    if (hydrated == true) {
+      send({type: 'mutate', mutations});
+    } else {
+      send({type: 'hydrate', mutations});
+      hydrated = true;
+    }
+  });
+  observer.observe(__scope.document, {subtree: true});
+
+  addEventListener('message', ({data}) => {
+    switch (data.type) {
+      case 'init':
+        __scope.url = data.url;
+        break;
+      case 'event':
+        handleEvent(data.event);
+        break;
+    }
+  });
+})(monkeyScope, postMessage);

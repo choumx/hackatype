@@ -12,23 +12,23 @@ const plugins = [
 
 export default [
 	{
-		input: 'src/worker-thread/app.js',
+		input: 'src/author/app.js',
 		output: {
-			file: 'build/worker-thread/app.js',
+			file: 'build/author/app.js',
 			format: 'iife',
 			sourcemap: true,
 		},
 		plugins
 	},
-	{
-		input: 'src/worker-thread/monkey.js',
-		output: {
-			file: 'build/worker-thread/monkey.js',
-			format: 'iife',
-			sourcemap: true,
-		},
-		plugins
-	},
+	// {
+	// 	input: 'src/worker-thread/monkey.js',
+	// 	output: {
+	// 		file: 'build/worker-thread/monkey.js',
+	// 		format: 'iife',
+	// 		sourcemap: true,
+	// 	},
+	// 	plugins
+	// },
 	{
 		input: 'src/entry.js',
 		output: {
@@ -39,3 +39,5 @@ export default [
 		plugins
 	}
 ];
+
+// We need to globally replace __REQUIRE_GESTURE_TO_MUTATE__ with a boolean value.

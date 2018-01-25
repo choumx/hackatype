@@ -1,4 +1,4 @@
-import {postToWorker} from './message-to-worker.js';
+import {messageToWorker} from './message-to-worker.js';
 
 const EVENTS_TO_PROXY = [
   'change',
@@ -51,7 +51,7 @@ export function listenForEvents(worker) {
       }
     }
 
-    postToWorker(worker, {type: 'event', event});
+    messageToWorker(worker, {type: 'event', event});
 
     // Recategorize very close touchstart/touchend events as clicks.
     // TODO(willchou): Unnecessary?
@@ -63,7 +63,7 @@ export function listenForEvents(worker) {
         let dist = Math.sqrt(Math.pow(touchEnd.pageX - touchStart.pageX, 2) + Math.pow(touchEnd.pageY - touchStart.pageY, 2));
         if (dist < 10) {
           event.type = 'click';
-          postToWorker(worker, {type: 'event', event});
+          messageToWorker(worker, {type: 'event', event});
         }
       }
     }
