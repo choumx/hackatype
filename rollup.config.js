@@ -1,26 +1,41 @@
-import nodeResolve from 'rollup-plugin-node-resolve';
+import resolve from 'rollup-plugin-node-resolve';
 import commonjs from 'rollup-plugin-commonjs';
 import babel from 'rollup-plugin-babel';
 
-export default {
-	entry: 'src/app.js',
-	dest: 'build/app.js',
-	format: 'iife',
-	sourceMap: true,
-	external: [],
-	plugins: [
-		babel({
-			babelrc: false,
-			presets: [
-				['es2015', { loose:true, modules:false }],
-				'stage-0'
-			],
-			plugins: [
-				'external-helpers',
-				['transform-react-jsx', { pragma:'h' }]
-			]
-		}),
-		nodeResolve({ jsnext:true }),
-		commonjs()
-	]
-};
+const plugins = [
+	babel({
+		exclude: 'node_modules/**'
+	}),
+	resolve(),
+	commonjs()
+];
+
+export default [
+	{
+		input: 'src/worker-thread/app.js',
+		output: {
+			file: 'build/worker-thread/app.js',
+			format: 'iife',
+			sourcemap: true,
+		},
+		plugins
+	},
+	{
+		input: 'src/worker-thread/monkey.js',
+		output: {
+			file: 'build/worker-thread/monkey.js',
+			format: 'iife',
+			sourcemap: true,
+		},
+		plugins
+	},
+	{
+		input: 'src/entry.js',
+		output: {
+			file: 'build/entry.js',
+			format: 'iife',
+			sourcemap: true,
+		},
+		plugins
+	}
+];

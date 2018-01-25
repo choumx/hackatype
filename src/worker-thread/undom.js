@@ -1,19 +1,8 @@
-// Prevent leaking global in functions with no callers.
-'use strict';
-
-// Chrome doesn't support ES6 modules in workers yet, so we dupe the flags
-// on main page (renderer.js) and worker (undom.js).
-const Flags = {
-  REQUIRE_GESTURE_TO_MUTATE: false,
-};
-
-let initialRenderComplete = false;
-
 // Variables in global scope are not enumerable and won't be dereferenced
 // (which wouldn't work anyways).
 // TODO(willchou): Figure out a way to avoid polluting the global scope with
 // these variables/functions or define a naming convention for them.
-let undom = function() {
+export function undom() {
   let observers = [];
   let pendingMutations = false;
 
