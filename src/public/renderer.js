@@ -14,6 +14,11 @@ export default ({worker}) => {
     'change',
     'click',
     'focus',
+    // Following are necessary for todomvc.
+    'keydown',
+    'input',
+    'dblclick',
+    'hashchange',
   ];
 
   const NODES = new Map();
@@ -33,7 +38,7 @@ export default ({worker}) => {
   }
 
   EVENTS_TO_PROXY.forEach((e) => {
-    addEventListener(e, proxyEvent, {capture: true, passive: true});
+    addEventListener(e, proxyEvent, {capture: true, passive: false});
   });
 
   // Allow mutations up to 1s after user gesture.
@@ -72,8 +77,14 @@ export default ({worker}) => {
 
     // For change events, update worker with new `value` prop.
     // TODO(willchou): Complete support for user input (e.g. input events, other props).
-    if (e.type == 'change' && 'value' in e.target) {
+    if (['change', 'input'].indexOf(e.type) >= 0 && 'value' in e.target) {
       event.__value = e.target.value;
+    }
+
+    // HACK(willchou): This is only needed for TodoMvcApp. For the real deal,
+    // need to implement the page-side preventDefault() opt-in (a la Wiz).
+    if (e.type == 'keydown' && e.keyCode == 13) {
+      e.preventDefault();
     }
 
     // Copy properties from `e` to proxied `event`.

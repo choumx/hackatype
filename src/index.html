@@ -4,17 +4,12 @@
     <meta charset="utf-8" />
     <title>AJMSP</title>
     <style>
-      body, input, button { font-size: 2em; }
-      /* #metrics {
-        width: 50;
-        height: 20;
-        position: fixed;
-        background-color: black;
-        color: red;
-        font-size: 2em;
-      } */
+      /* body, input, button { font-size: 2em; } */
     </style>
     <!-- <link rel="stylesheet" type="text/css" href="dbmon.css"> -->
+
+    <link rel="stylesheet" href="todomvc-common/base.css">
+    <link rel="stylesheet" href="todomvc.css">
 
     <!--
     Set CSP to prevent unsafe-eval.
@@ -24,16 +19,23 @@
 
     This may mean that null-origin worker via "sandbox" directive is not possible with blob URL worker.
     -->
-    <meta http-equiv="Content-Security-Policy" content="default-src * blob:">
+    <meta http-equiv="Content-Security-Policy" content="default-src * blob:; img-src * data:">
   </head>
   <body>
     <script async type=module src=entry.js></script>
 
     <!-- <div width=100 height=50 id="metrics"></div> -->
 
-    <div id="root">
+    <section id="root"
+        class="todoapp">
       <!-- AOT render that will be hydrated during init. -->
-      <div amp-aot><h3>TODO</h3><ul></ul><input value="<Add TODO>" /><button>Add #1</button></div>
-    </div>
+      <!-- <div amp-aot><h3>TODO</h3><ul></ul><input value="<Add TODO>" /><button>Add #1</button></div> -->
+    </section>
+
+    <footer class="info">
+      <p>Double-click to edit a todo</p>
+      <p>Created by <a href="http://github.com/choumx/">choumx</a> and <a href="http://github.com/kristoferbaxter">kristoferbaxter</a></p>
+      <p>Part of <a href="http://todomvc.com">TodoMVC</a></p>
+    </footer>
   </body>
 </html>

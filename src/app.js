@@ -1,5 +1,6 @@
 import {h, render, Component} from 'preact';
 import {DBMon} from './dbmon';
+import TodoMvcApp from './todomvc/index';
 
 /** "Hello World" component w/ a button click listener. */
 class Hello extends Component {
@@ -123,6 +124,7 @@ class Timer extends Component {
 
 // TODO(willchou): Support rendering to nodes other than body.
 // render(<Hello />, document.body);
-render(<TodoApp />, document.body);
+// render(<TodoApp />, document.body);
 // render(<Timer />, document.body);
 // render(<DBMon />, document.body);
+render(<TodoMvcApp />, document.body);

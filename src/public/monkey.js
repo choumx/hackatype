@@ -13,21 +13,7 @@ const monkeyScope = {
     },
   },
   localStorage: {},
-  location: {
-    _current: '/',
-    get href() {
-      return url;
-    },
-    get pathname() {
-      return null;
-    },
-    get search() {
-      return null;
-    },
-    get hash() {
-      return null;
-    },
-  },
+  location: {},
   url: '/',
 };
 // Surface top-level undom window properties e.g document, Element.
@@ -67,14 +53,27 @@ for (let i in undomWindow) {
       return null;
     }
     if (node.nodeName === 'BODY') {
-      return document.body;
+      return __scope.document.body;
     }
     const n = NODES.get(id);
     return n;
   }
 
   function handleEvent(event) {
-    let target = getNode(event.target);
+    if (event.type == 'hashchange') {
+      const url = new URL(event.newURL);
+      // Don't reassign location to avoid orphaning any old references.
+      __scope.location.href = url.href;
+      __scope.location.hash = url.hash;
+      __scope.location.pathname = url.pathname;
+      __scope.location.search = url.search;
+      console.info('Updated location:', __scope.location);
+    }
+
+    // Null target may mean it was a window-level event e.g. 'hashchange'.
+    // Dispatch those from the document instead. We also proxy invocations
+    // of `addEventListener` on the global scope too. See entry.js.
+    let target = getNode(event.target) || __scope.document;
     if (target) {
       // Update worker DOM with user changes to <input> etc.
       if ('__value' in event) {
@@ -82,6 +81,9 @@ for (let i in undomWindow) {
       }
       event.target = target;
       event.bubbles = true;
+      event.preventDefault = () => {
+        console.info('preventDefault() called on: ', event);
+      };
       target.dispatchEvent(event);
     }
   }
@@ -242,8 +244,9 @@ const WHITELISTED_GLOBALS = {
   'eval': true,
   'isFinite': true,
   'isNaN': true,
-  // Custom additions.
+  // Later additions.
   'performance': true,
+  'URL': true,
 };
 Object.keys(monkeyScope).forEach(monkeyProp => {
   WHITELISTED_GLOBALS[monkeyProp] = true;
@@ -260,7 +263,7 @@ Object.keys(monkeyScope).forEach(monkeyProp => {
       console.info(`Deleting "${property}"...`);
       delete object[property];
     } catch (e) {
-      console.error(e)
+      console.error(e);
     }
   }
 

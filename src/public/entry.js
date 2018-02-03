@@ -18,10 +18,19 @@ Promise.all([
         console.assert(!f);
       })();`;
 
-  // `with()` not allowed in strict mode.
+  // `with()` not allowed in strict mode. Also note that `this` reference
+  // won't be available in webpack modules (and probably rollup and others),
+  // so all globals will need to be explicitly defined here.
   const monkeyGlobal = `
       const self = this;
+
       const document = this.document;
+      const localStorage = this.localStorage;
+      const location = this.location;
+
+      // Proxy event listeners invoked on global.
+      const addEventListener = (type, handler) => document.addEventListener(type, handler);
+
       const Node = this.Node;
       const Text = this.Text;
       const Element = this.Element;

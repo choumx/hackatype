@@ -217,6 +217,13 @@ let undom = function() {
       } while (event.bubbles && !(c && event._stop) && (event.target = t = t.parentNode));
       return !event.defaultPrevented;
     }
+    // TODO(willchou): Actually belongs to HTMLInputElement. Put in proxy?
+    get type() {
+      if (this.nodeName == 'INPUT') {
+        return this.getAttribute('type') || 'text';
+      }
+      return undefined;
+    }
   }
 
   class SVGElement extends Element {}
