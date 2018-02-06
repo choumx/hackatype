@@ -83,7 +83,9 @@ export default ({worker}) => {
 
     // HACK(willchou): This is only needed for TodoMvcApp. For the real deal,
     // need to implement the page-side preventDefault() opt-in (a la Wiz).
-    if (e.type == 'keydown' && e.keyCode == 13) {
+    const enterKeyDown = (e.type == 'keydown' && e.keyCode == 13);
+    const todoItemToggled = (e.target.type == 'checkbox');
+    if (enterKeyDown || todoItemToggled) {
       e.preventDefault();
     }
 
