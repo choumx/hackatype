@@ -77,7 +77,7 @@ for (let i in undomWindow) {
     if (target) {
       // Update worker DOM with user changes to <input> etc.
       if ('__value' in event) {
-        target.value = event.__value;
+        target['**value'] = event.__value;
       }
       event.target = target;
       event.bubbles = true;

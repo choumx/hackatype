@@ -80,6 +80,10 @@ let undom = function() {
       }
       mutation(this, 'childList', {addedNodes: [child], previousSibling: this.childNodes[this.childNodes.length - 2]});
     }
+    firstChild() {
+      // NOTE(willchou): Used by Preact for diffing DOM vs. VDOM children.
+      return this.childNodes.length ? this.childNodes[0] : null;
+    }
     insertBefore(child, ref) {
       child.remove();
       let i = splice(this.childNodes, ref, child), ref2;
@@ -185,6 +189,9 @@ let undom = function() {
         this.attributes.push(attr = {ns, name});
       }
       attr.value = String(value);
+      if (attr.value == oldValue) { // NOTE(willchou): Unclear why Preact is causing no-op diffs here.
+        return;
+      }
       mutation(this, 'attributes', {attributeName: name, attributeNamespace: ns, value: attr.value, oldValue});
     }
     getAttributeNS(ns, name) {
@@ -192,6 +199,9 @@ let undom = function() {
       return attr && attr.value;
     }
     removeAttributeNS(ns, name) {
+      if (!this.getAttributeNS(ns, name)) { // NOTE(willchou): Ditto re: above.
+        return;
+      }
       splice(this.attributes, createAttributeFilter(ns, name));
       mutation(this, 'attributes', {attributeName: name, attributeNamespace: ns, oldValue: this.getAttributeNS(ns, name)});
     }
@@ -283,12 +293,16 @@ let undom = function() {
    */
   const ElementProxyHandler = {
     set(target, property, value, receiver) {
-      const oldValue = target[property];
-      if (oldValue === value) {
+      // Special-case for '__'-prefixed properties forwarded from page (rather
+      // than mutated in the worker). We should skip triggering the mutation
+      // observer since that would be a circular update.
+      if (typeof property == 'string' && property.startsWith('**')) {
+        target[property.substring(2)] = value;
         return true;
       }
+      const oldValue = target[property];
       target[property] = value;
-      if (isDOMProperty(target, property)) {
+      if (oldValue !== value && isDOMProperty(target, property)) {
         // Update attribute on first render (mimic DOM behavior of props vs. attrs).
         if (!target.getAttribute(property)) {
           target.setAttribute(property, value);
