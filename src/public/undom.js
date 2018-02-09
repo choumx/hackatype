@@ -293,7 +293,7 @@ let undom = function() {
    */
   const ElementProxyHandler = {
     set(target, property, value, receiver) {
-      // Special-case for '__'-prefixed properties forwarded from page (rather
+      // Special-case for '**'-prefixed properties forwarded from page (rather
       // than mutated in the worker). We should skip triggering the mutation
       // observer since that would be a circular update.
       if (typeof property == 'string' && property.startsWith('**')) {
@@ -301,8 +301,11 @@ let undom = function() {
         return true;
       }
       const oldValue = target[property];
+      if (oldValue === value) {
+        return true;
+      }
       target[property] = value;
-      if (oldValue !== value && isDOMProperty(target, property)) {
+      if (isDOMProperty(target, property)) {
         // Update attribute on first render (mimic DOM behavior of props vs. attrs).
         if (!target.getAttribute(property)) {
           target.setAttribute(property, value);
